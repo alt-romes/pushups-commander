@@ -60,6 +60,11 @@ eventHandler session event = case event of
 
 ---- Interaction with RecordM -----
 
+
+pushupsDefinition :: Definition PushupsRecord
+pushupsDefinition = Definition "ROMES Pushups Commander"
+
+
 type Username = Text
 
 data PushupsRecord = PushupsRecord (Maybe GuildId) UserId Username Amount Exercise
@@ -73,13 +78,12 @@ instance ToJSON PushupsRecord where
         , "Type"   .= T.toLower (pack $ show exercise) ]
 
 instance Record PushupsRecord where
-    definitionName _ = "ROMES Pushups Commander"
 
 makePRecord :: Message -> Amount -> Exercise -> PushupsRecord
 makePRecord m = PushupsRecord (messageGuild m) (userId $ messageAuthor m) (userName $ messageAuthor m)
 
 addExercise :: Session -> PushupsRecord -> IO ()
-addExercise = integrationPOST
+addExercise = integrationPOST pushupsDefinition
 
 
 ----- Run Discord Bot -----
