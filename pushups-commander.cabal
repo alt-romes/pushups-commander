@@ -40,4 +40,8 @@ executable pushups-commander
         http-conduit,
         http-types,
         bytestring,
-        time
+        time,
+        bloodhound,
+        lens,
+        lens-aeson,
+        attoparsec

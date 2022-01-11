@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PushupsCommander where
 
-import Data.Aeson
-import Discord.Types
 import Data.Bifunctor
 import Data.Char
 import Text.Read
@@ -23,7 +21,7 @@ data Command = AddExercise Amount Exercise
              | QueryDatabase Target Exercise
              deriving (Show)
 
-data Target = Today | All | Server deriving (Show)
+data Target = Today | All | Server deriving (Show, Eq)
 
 
 parseMsg :: Text -> Either ErrorMsg Command
@@ -82,29 +80,4 @@ parseMsg m = case uncons $ whitespace m of
     changeLeft newValue eitherValue = case eitherValue of
         Left _ -> Left newValue
         Right r -> Right r
-
-
-
----- Interaction with RecordM -----
-
-type Username = Text
-
-data PushupsRecord = PushupsRecord (Maybe GuildId) UserId Username Amount Exercise
-
-instance ToJSON PushupsRecord where
-    toJSON (PushupsRecord sid uid username amount exercise) = object
-        [ "Server" .= sid
-        , "User"   .= uid
-        , "Name"   .= username
-        , "Amount" .= show amount
-        , "Type"   .= T.toLower (pack $ show exercise) ]
-
-instance Record PushupsRecord where
-    definitionName _ = "ROMES Pushups Commander"
-
-makePRecord :: Message -> Amount -> Exercise -> PushupsRecord
-makePRecord m = PushupsRecord (messageGuild m) (userId $ messageAuthor m) (userName $ messageAuthor m)
-
-addExercise :: Session -> PushupsRecord -> IO ()
-addExercise = integrationPOST
 
