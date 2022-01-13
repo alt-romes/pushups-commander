@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 module Main where
 
 import Data.Aeson
@@ -34,10 +34,12 @@ eventHandler session event = case event of
                   void . restCall $ R.CreateReaction (messageChannel m, messageId m) "muscle"
 
               RmExercise amount exercise -> do
-                  liftIO $ addExercise session $ makePRecord m (-amount) exercise
+                  -- liftIO $ addExercise session $ makePRecord m (-amount) exercise
                   void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
               Imperative (ActivateCommander code) -> do
+                  pushupsRecs <- liftIO $ rmDefinitionSearch session pushupsDefinition defaultRMQuery
+                  liftIO $ print pushupsRecs
                   replyToMsg m "Successfully activated!"
 
               QueryDatabase target exercise -> do
@@ -75,7 +77,16 @@ pushupsDefinition = Definition "ROMES Pushups Commander"
 
 type Username = Text
 
-data PushupsRecord = PushupsRecord (Maybe GuildId) UserId Username Amount Exercise
+data PushupsRecord = PushupsRecord GuildId UserId Username Amount Exercise
+                deriving (Show)
+
+instance FromJSON Exercise where
+    parseJSON = withText "Exercise" $ \case
+          "pushups" -> return Pushups
+          "abs" -> return Abs
+          "squats" -> return Squats
+          "kilometers" -> return Kilometers
+          _ -> fail "Error parsing exercise from JSON"
 
 instance ToJSON PushupsRecord where
     toJSON (PushupsRecord sid uid username amount exercise) = object
@@ -85,13 +96,22 @@ instance ToJSON PushupsRecord where
         , "Amount" .= show amount
         , "Type"   .= T.toLower (pack $ show exercise) ]
 
+instance FromJSON PushupsRecord where
+    parseJSON = withObject "PushupsRecord" $ \v -> do
+        [server] <- v .: "server"
+        [user]   <- v .: "user"
+        [name]   <- v .: "name"
+        [amount] <- v .: "amount"
+        [t]      <- v .: "type"
+        return (PushupsRecord server user name (read amount) t)
+
 instance Record PushupsRecord where
 
 makePRecord :: Message -> Amount -> Exercise -> PushupsRecord
-makePRecord m = PushupsRecord (messageGuild m) (userId $ messageAuthor m) (userName $ messageAuthor m)
+makePRecord m = PushupsRecord (fromJust $  messageGuild m) (userId $ messageAuthor m) (userName $ messageAuthor m)
 
 addExercise :: Session -> PushupsRecord -> IO ()
-addExercise = integrationPOST pushupsDefinition
+addExercise = flip integrationPOST pushupsDefinition
 
 
 ----- Run Discord Bot -----

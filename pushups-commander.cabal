@@ -42,7 +42,7 @@ executable pushups-commander
         http-types,
         bytestring,
         time,
-        bloodhound,
         lens,
         lens-aeson,
-        attoparsec
+        transformers,
+        vector

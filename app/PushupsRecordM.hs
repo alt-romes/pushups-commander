@@ -45,7 +45,8 @@ data ServersRecord = ServersRecord ServerIdentifier ActivationCode Owner
 instance ToJSON ServersRecord where
     toJSON (ServersRecord si co o) = object
         [ "Server" .= si
-        , "Activation Code" .= co ]
+        , "Activation Code" .= co
+        , "Owner" .= o ]
 
 data ServerUsersRecord = ServerUsersRecord (Ref UsersRecord) (Ref ServersRecord) ServerUsername
 instance ToJSON ServerUsersRecord where

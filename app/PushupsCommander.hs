@@ -1,6 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module PushupsCommander where
 
+import GHC.Generics
 import Data.Bifunctor
 import Data.Char
 import Text.Read
@@ -13,7 +14,7 @@ import RecordM
 
 type Amount = Int
 
-data Exercise = Pushups | Abs | Squats | Kilometers | Unknown Text deriving (Show)
+data Exercise = Pushups | Abs | Squats | Kilometers | Unknown Text deriving (Generic, Show)
 
 data Command = AddExercise Amount Exercise
              | RmExercise Amount Exercise
