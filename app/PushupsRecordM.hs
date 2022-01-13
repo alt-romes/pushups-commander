@@ -22,6 +22,8 @@ exercisesDefinition :: Definition ExercisesRecord
 exercisesDefinition = Definition "ROMES Pushups Exercises"
 
 
+type Owner = Text
+type ActivationCode = Text
 type MasterUsername = Text
 type ServerIdentifier = Text
 type ServerUsername = Text
@@ -39,10 +41,11 @@ instance ToJSON UsersRecord where
     toJSON (UsersRecord mu) = object
         [ "Master Username" .= mu ]
 
-newtype ServersRecord = ServersRecord ServerIdentifier
+data ServersRecord = ServersRecord ServerIdentifier ActivationCode Owner
 instance ToJSON ServersRecord where
-    toJSON (ServersRecord si) = object
-        [ "Server" .= si ]
+    toJSON (ServersRecord si co o) = object
+        [ "Server" .= si
+        , "Activation Code" .= co ]
 
 data ServerUsersRecord = ServerUsersRecord (Ref UsersRecord) (Ref ServersRecord) ServerUsername
 instance ToJSON ServerUsersRecord where
@@ -57,3 +60,4 @@ instance ToJSON ExercisesRecord where
         [ "Server Username" .= refserverusers
         , "Amount" .= amount
         , "Exercise Type" .= exercise ]
+

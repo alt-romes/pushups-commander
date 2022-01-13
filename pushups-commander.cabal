@@ -31,7 +31,7 @@ executable pushups-commander
     -- other-extensions:
     hs-source-dirs:   app
     default-language: Haskell2010
-    ghc-options:      -threaded
+    ghc-options:      -threaded -fllvm
     build-depends:
         base ^>= 4.15.0.0,
         text,

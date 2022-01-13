@@ -12,19 +12,23 @@ import RecordM
 ----- Main -----
 
 type Amount = Int
-type ErrorMsg = Text
 
 data Exercise = Pushups | Abs | Squats | Kilometers | Unknown Text deriving (Show)
 
 data Command = AddExercise Amount Exercise
              | RmExercise Amount Exercise
              | QueryDatabase Target Exercise
+             | Imperative ImperativeCommand
              deriving (Show)
+
+newtype ImperativeCommand = ActivateCommander Text
+                          deriving (Show)
 
 data Target = Today | All | Server deriving (Show, Eq)
 
+data ParseError = Ok | FailParseAmount | FailNonEmptyWord | FailArgument deriving (Show)
 
-parseMsg :: Text -> Either ErrorMsg Command
+parseMsg :: Text -> Either ParseError Command
 parseMsg m = case uncons $ whitespace m of
         Just ('+', m') -> do
             (amount, exercise) <- parseAmountAndExercise m'
@@ -35,17 +39,28 @@ parseMsg m = case uncons $ whitespace m of
         Just ('?', m') -> do
             (target, exercise) <- parseTargetAndExercise m'
             return (QueryDatabase target exercise)
-        _     -> Left ""
+        Just ('!', m') -> Imperative <$> parseImperativeCommand m'
+        _     -> Left Ok
 
     where
-    parseAmount :: Text -> Either ErrorMsg (Amount, Text)
+    parseImperativeCommand :: Text -> Either ParseError ImperativeCommand
+    parseImperativeCommand s = case takeWord s of
+        ("activate", s') -> ActivateCommander <$> changeLeft FailArgument (parseNonEmptyWord s')
+        _ -> Left Ok
+
+    parseNonEmptyWord :: Text -> Either ParseError Text
+    parseNonEmptyWord s = case takeWord s of
+        ("", _) -> Left FailNonEmptyWord
+        (w, _) -> return w
+
+    parseAmount :: Text -> Either ParseError (Amount, Text)
     parseAmount s = do
         let (a, s') = T.span isDigit $ whitespace s
-        amount <- changeLeft ("Couldn't parse amount!" :: Text) $ readEither $ unpack a
+        amount <- changeLeft FailParseAmount $ readEither $ unpack a
         return (amount, s')
 
     parseExercise :: Text -> Exercise
-    parseExercise s = case T.span (/= ' ') $ whitespace s of
+    parseExercise s = case takeWord s of
         ("", _)           -> Pushups
         ("p", _)          -> Pushups
         ("pushups", _)    -> Pushups
@@ -57,24 +72,27 @@ parseMsg m = case uncons $ whitespace m of
         ("kilometers", _) -> Kilometers
         _                 -> Unknown $ whitespace s
 
-    parseTarget :: Text -> Either ErrorMsg (Target, Text)
-    parseTarget s = case T.span (/= ' ') $ whitespace s of
-        ("t", s)      -> return (Today, s)
-        ("today", s)  -> return (Today, s)
-        ("a", s)      -> return (All, s)
-        ("all", s)    -> return (All, s)
-        ("s", s)      -> return (Server, s)
-        ("server", s) -> return (Server, s)
-        _             -> Left "Query should specify today, all, or server"
+    parseTarget :: Text -> Either ParseError (Target, Text)
+    parseTarget s = case takeWord s of
+        ("t", s')      -> return (Today, s')
+        ("today", s')  -> return (Today, s')
+        ("a", s')      -> return (All, s')
+        ("all", s')    -> return (All, s')
+        ("s", s')      -> return (Server, s')
+        ("server", s') -> return (Server, s')
+        _             -> Left Ok
 
     whitespace :: Text -> Text
     whitespace = T.dropWhile (== ' ')
 
-    parseAmountAndExercise :: Text -> Either ErrorMsg (Amount, Exercise)
+    parseAmountAndExercise :: Text -> Either ParseError (Amount, Exercise)
     parseAmountAndExercise s = second parseExercise <$> parseAmount s
 
-    parseTargetAndExercise :: Text -> Either ErrorMsg (Target, Exercise)
+    parseTargetAndExercise :: Text -> Either ParseError (Target, Exercise)
     parseTargetAndExercise s = second parseExercise <$> parseTarget s
+
+    takeWord :: Text -> (Text, Text)
+    takeWord = T.span (/= ' ') . whitespace
 
     changeLeft :: a -> Either b c -> Either a c
     changeLeft newValue eitherValue = case eitherValue of

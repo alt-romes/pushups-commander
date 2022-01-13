@@ -37,16 +37,18 @@ eventHandler session event = case event of
                   liftIO $ addExercise session $ makePRecord m (-amount) exercise
                   void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
+              Imperative (ActivateCommander code) -> do
+                  replyToMsg m "Successfully activated!"
+
               QueryDatabase target exercise -> do
                   amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (userId $ messageAuthor m) target exercise
                   void . restCall $ R.CreateMessage (messageChannel m) (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!"))
 
-          Left ""  -> return ()
+          Left Ok  -> return ()
 
-          Left err -> void . restCall $
-                  R.CreateMessageDetailed (messageChannel m) $
-                    def { R.messageDetailedContent = "Error: " <> err
-                        , R.messageDetailedReference = Just $ def { referenceMessageId = Just (messageId m) } }
+          Left FailParseAmount -> replyToMsg m "Error: Couldn't parse amount!"
+
+          Left err -> replyToMsg m $ pack $ show err
 
     _ -> return () 
 
@@ -56,6 +58,12 @@ eventHandler session event = case event of
 
     fromBot :: Message -> Bool
     fromBot = userIsBot . messageAuthor
+
+    replyToMsg :: Message -> Text -> DiscordHandler ()
+    replyToMsg m text = void . restCall $
+      R.CreateMessageDetailed (messageChannel m) $
+        def { R.messageDetailedContent = text
+            , R.messageDetailedReference = Just $ def { referenceMessageId = Just (messageId m) } }
 
 
 ---- Interaction with RecordM -----
