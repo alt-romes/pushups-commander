@@ -36,18 +36,18 @@ eventHandler session event = case event of
                   void . restCall $ R.CreateReaction (messageChannel m, messageId m) "muscle"
 
               RmExercise amount exercise -> do
-                  -- liftIO $ addExercise session $ makePRecord m (-amount) exercise
+                  liftIO $ addExercise session $ makePRecord m (-amount) exercise
                   void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
-
+              -- todo can't exist already
               Imperative (ActivateCommander code) -> do
-                  maybeServersRecords <- liftIO $ rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = code }
+                  maybeServersRecords <- liftIO $ rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = "activation_code:" <> code }
                   case maybeServersRecords of
                     Nothing -> replyToMsg m "An error has occurred when activating."
-                    Just serversRecords ->
-                      case find ((== code) . serversRecordActivationCode) serversRecords of
-                         Just activationRecord -> do
-                             liftIO $ rmAddInstance session serversDefinition activationRecord { serversRecordServerIdentifier = maybe (error "TODO: Handle") (pack . show) (messageGuild m) }
+                    Just serversRecords -> do
+                      case find ((== code) . serversRecordActivationCode . snd) serversRecords of
+                         Just (id, activationRecord) -> do
+                             liftIO $ rmUpdateInstance session serversDefinition id activationRecord { serversRecordServerIdentifier = getServerId m }
                              replyToMsg m "Successfully activated!"
                          Nothing -> replyToMsg m "Invalid activation code!"
 
@@ -75,6 +75,11 @@ eventHandler session event = case event of
       R.CreateMessageDetailed (messageChannel m) $
         def { R.messageDetailedContent = text
             , R.messageDetailedReference = Just $ def { referenceMessageId = Just (messageId m) } }
+
+    getServerId :: Message -> ServerIdentifier
+    getServerId m = case messageGuild m of
+                      Nothing -> "Discord direct message"
+                      Just id -> pack $ show id
 
 
 ---- Interaction with RecordM -----

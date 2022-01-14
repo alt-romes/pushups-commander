@@ -46,6 +46,7 @@ instance FromJSON UsersRecord where
 data ServersRecord = ServersRecord { serversRecordServerIdentifier :: ServerIdentifier
                                    , serversRecordActivationCode   :: ActivationCode
                                    , serversRecordOwner            :: Owner }
+                                   deriving (Show)
 
 instance Record ServersRecord
 instance ToJSON ServersRecord where
