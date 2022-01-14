@@ -4,7 +4,8 @@ module Main where
 import Data.Aeson
 import Data.Aeson.Types
 
-import Data.Text as T
+import Data.List
+import Data.Text as T hiding (any, find)
 import qualified Data.Text.IO as TIO
 import qualified Data.ByteString as BS
 
@@ -18,6 +19,7 @@ import Discord.Types
 import qualified Discord.Requests as R
 
 import RecordM
+import PushupsRecordM
 import PushupsCommander
 
 
@@ -37,10 +39,17 @@ eventHandler session event = case event of
                   -- liftIO $ addExercise session $ makePRecord m (-amount) exercise
                   void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
+
               Imperative (ActivateCommander code) -> do
-                  pushupsRecs <- liftIO $ rmDefinitionSearch session pushupsDefinition defaultRMQuery
-                  liftIO $ print pushupsRecs
-                  replyToMsg m "Successfully activated!"
+                  maybeServersRecords <- liftIO $ rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = code }
+                  case maybeServersRecords of
+                    Nothing -> replyToMsg m "An error has occurred when activating."
+                    Just serversRecords ->
+                      case find ((== code) . serversRecordActivationCode) serversRecords of
+                         Just activationRecord -> do
+                             liftIO $ rmAddInstance session serversDefinition activationRecord { serversRecordServerIdentifier = maybe (error "TODO: Handle") (pack . show) (messageGuild m) }
+                             replyToMsg m "Successfully activated!"
+                         Nothing -> replyToMsg m "Invalid activation code!"
 
               QueryDatabase target exercise -> do
                   amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (userId $ messageAuthor m) target exercise
@@ -98,6 +107,8 @@ instance ToJSON PushupsRecord where
 
 instance FromJSON PushupsRecord where
     parseJSON = withObject "PushupsRecord" $ \v -> do
+        -- Important to take into consideration that all values come as arrays,
+        -- so we must select the information on parse
         [server] <- v .: "server"
         [user]   <- v .: "user"
         [name]   <- v .: "name"
@@ -110,8 +121,8 @@ instance Record PushupsRecord where
 makePRecord :: Message -> Amount -> Exercise -> PushupsRecord
 makePRecord m = PushupsRecord (fromJust $  messageGuild m) (userId $ messageAuthor m) (userName $ messageAuthor m)
 
-addExercise :: Session -> PushupsRecord -> IO ()
-addExercise = flip integrationPOST pushupsDefinition
+addExercise :: Session -> PushupsRecord -> IO (Maybe (Ref PushupsRecord))
+addExercise = flip rmAddInstance pushupsDefinition
 
 
 ----- Run Discord Bot -----

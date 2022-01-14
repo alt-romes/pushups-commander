@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PushupsRecordM where
 
+import Data.Maybe
 import Data.Text
 
 import Data.Aeson
@@ -32,21 +33,35 @@ type Id = Int
 instance ToJSON Exercise where
     toJSON = toJSON . toLower . pack . show
 
-newtype Ref a = Ref Int
-instance ToJSON (Ref a) where
-    toJSON (Ref i) = toJSON i
-
 newtype UsersRecord = UsersRecord MasterUsername 
+instance Record UsersRecord
 instance ToJSON UsersRecord where
     toJSON (UsersRecord mu) = object
         [ "Master Username" .= mu ]
+instance FromJSON UsersRecord where
+    parseJSON (Object v) = do
+        [name] <- v .: "master_username"
+        return (UsersRecord name)
 
-data ServersRecord = ServersRecord ServerIdentifier ActivationCode Owner
+data ServersRecord = ServersRecord { serversRecordServerIdentifier :: ServerIdentifier
+                                   , serversRecordActivationCode   :: ActivationCode
+                                   , serversRecordOwner            :: Owner }
+
+instance Record ServersRecord
 instance ToJSON ServersRecord where
     toJSON (ServersRecord si co o) = object
         [ "Server" .= si
         , "Activation Code" .= co
         , "Owner" .= o ]
+instance FromJSON ServersRecord where
+    parseJSON (Object v) = do
+        -- Important to take into consideration that all values come as arrays,
+        -- so we must select the information on parse
+        [si] <- v .:? "server" // [""]
+        [co] <- v .:? "activation_code" // [""]
+        [o]  <- v .:? "owner" // [""]
+        return (ServersRecord si co o)
+
 
 data ServerUsersRecord = ServerUsersRecord (Ref UsersRecord) (Ref ServersRecord) ServerUsername
 instance ToJSON ServerUsersRecord where
