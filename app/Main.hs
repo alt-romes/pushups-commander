@@ -27,44 +27,44 @@ import PushupsCommander
 
 eventHandler :: Session -> Event -> DiscordHandler ()
 eventHandler session event = case event of
-    MessageCreate m -> unless (fromBot m) $ do
-        case parseMsg $ messageText m of
-          Right command -> do
+    MessageCreate m -> do
+        x <- runExceptT (
+            unless (fromBot m) $ do
+            command <- parseMsg $ messageText m
             log ("Got command!\n" <> pack (show command))
             case command of
 
               AddExercise amount exercise -> do
-                  liftIO $ addExercise session $ makePRecord m amount exercise
-                  void . restCall $ R.CreateReaction (messageChannel m, messageId m) "muscle"
+                  liftIO $ addExercise $ makePRecord m amount exercise
+                  lift . void . restCall $ R.CreateReaction (messageChannel m, messageId m) "muscle"
 
               RmExercise amount exercise -> do
-                  liftIO $ addExercise session $ makePRecord m (-amount) exercise
-                  void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
+                  liftIO $ addExercise $ makePRecord m (-amount) exercise
+                  lift . void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
               Imperative (ActivateCommander code) -> do
-                  res <- liftIO $ runExceptT $ do
-                      serversRecords <- rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = "activation_code:" <> code }
-                      case find ((\r -> serversRecordActivationCode r == code && serversRecordServerIdentifier r == "") . snd) serversRecords of
-                         Nothing -> throwE "Invalid activation code!"
-                         Just (id, activationRecord) -> do
-                             lift $ rmUpdateInstance session serversDefinition id activationRecord { serversRecordServerIdentifier = getServerId m }
-                  case res of
-                      Left e  -> replyToMsg m ("Error: " <> pack e)
-                      Right _ -> replyToMsg m "Successfully activated!"
+                  serversRecords <- rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = "activation_code:" <> code }
+                  case find ((\r -> serversRecordActivationCode r == code && serversRecordServerIdentifier r == "") . snd) serversRecords of
+                     Nothing -> throwE "Invalid activation code!"
+                     Just (id, activationRecord) -> do
+                         rmUpdateInstance session serversDefinition id activationRecord { serversRecordServerIdentifier = getServerId m }
+                  -- case res of
+                  --     Left e  -> lift $ replyToMsg m ("Error: " <> pack e)
+                  --     Right _ -> lift $ replyToMsg m "Successfully activated!"
 
               QueryDatabase target exercise -> do
                   amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (userId $ messageAuthor m) target exercise
-                  void . restCall $ R.CreateMessage (messageChannel m) (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!"))
-
-          Left Ok  -> return ()
-
-          Left FailParseAmount -> replyToMsg m "Error: Couldn't parse amount!"
-
-          Left err -> replyToMsg m $ pack $ show err
-
+                  lift . void . restCall $ R.CreateMessage (messageChannel m) (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!"))
+            :: ExceptT String DiscordHandler ())
+        case x of
+            Left err -> replyToMsg m $ pack $ show err
+            _ -> return ()
     _ -> return () 
 
     where
+    addExercise :: PushupsRecord -> IO (Maybe (Ref PushupsRecord))
+    addExercise = rmAddInstance session pushupsDefinition
+
     log :: MonadIO m => Text -> m ()
     log = void . liftIO . TIO.putStrLn
 
@@ -126,9 +126,6 @@ instance Record PushupsRecord where
 
 makePRecord :: Message -> Amount -> Exercise -> PushupsRecord
 makePRecord m = PushupsRecord (fromJust $  messageGuild m) (userId $ messageAuthor m) (userName $ messageAuthor m)
-
-addExercise :: Session -> PushupsRecord -> IO (Maybe (Ref PushupsRecord))
-addExercise = flip rmAddInstance pushupsDefinition
 
 
 ----- Run Discord Bot -----

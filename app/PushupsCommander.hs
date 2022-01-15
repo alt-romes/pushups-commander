@@ -33,7 +33,7 @@ data Target = Today | All | Server deriving (Show, Eq)
 -- data ParseError = FailParseAmount | FailNonEmptyWord | FailArgument deriving (Show)
 type ParseError = String
 
-parseMsg :: Text -> Except ParseError Command
+parseMsg :: Monad m => Text -> ExceptT ParseError m Command
 parseMsg m = case uncons $ whitespace m of
         Just ('+', m') -> parseAmountAndExercise m'
                           <&> uncurry AddExercise
@@ -46,20 +46,20 @@ parseMsg m = case uncons $ whitespace m of
         _     -> return Ok
 
     where
-    parseImperativeCommand :: Text -> Except ParseError (Maybe ImperativeCommand)
+    parseImperativeCommand :: Monad m => Text -> ExceptT ParseError m (Maybe ImperativeCommand)
     parseImperativeCommand s = case takeWord s of
         ("activate", s') -> Just . ActivateCommander <$> parseNonEmptyWord s'
         _ -> return Nothing
 
-    parseNonEmptyWord :: Text -> Except ParseError Text
+    parseNonEmptyWord :: Monad m => Text -> ExceptT ParseError m Text
     parseNonEmptyWord s = case takeWord s of
         ("", _) -> throwE "Parser failed expecting a word"
         (w, _) -> return w
 
-    parseAmount :: Text -> Except ParseError (Amount, Text)
+    parseAmount :: Monad m => Text -> ExceptT ParseError m (Amount, Text)
     parseAmount s = do
         let (a, s') = T.span isDigit $ whitespace s
-        amount <- except $ readEither $ unpack a
+        amount <- except $ readEither $ unpack a -- TODO: better error message
         return (amount, s')
 
     parseExercise :: Text -> Exercise
@@ -75,7 +75,7 @@ parseMsg m = case uncons $ whitespace m of
         ("kilometers", _) -> Kilometers
         _                 -> Unknown $ whitespace s
 
-    parseTarget :: Text -> Except ParseError (Maybe (Target, Text))
+    parseTarget :: Monad m => Text -> ExceptT ParseError m (Maybe (Target, Text))
     parseTarget s = case takeWord s of
         ("t", s')      -> return $ Just (Today, s')
         ("today", s')  -> return $ Just (Today, s')
@@ -88,10 +88,10 @@ parseMsg m = case uncons $ whitespace m of
     whitespace :: Text -> Text
     whitespace = T.dropWhile (== ' ')
 
-    parseAmountAndExercise :: Text -> Except ParseError (Amount, Exercise)
+    parseAmountAndExercise :: Monad m => Text -> ExceptT ParseError m (Amount, Exercise)
     parseAmountAndExercise s = second parseExercise <$> parseAmount s
 
-    parseTargetAndExercise :: Text -> Except ParseError (Maybe (Target, Exercise))
+    parseTargetAndExercise :: Monad m => Text -> ExceptT ParseError m (Maybe (Target, Exercise))
     parseTargetAndExercise s = (second parseExercise <$>) <$> parseTarget s
 
     takeWord :: Text -> (Text, Text)
