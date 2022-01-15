@@ -42,15 +42,15 @@ eventHandler session event = case event of
                   liftIO $ addExercise $ makePRecord m (-amount) exercise
                   lift . void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
+              -- TODO: serversRecordServerIdentifier r == "", and search for more possible? can we have duplicated codes in that case? or just remove?
               Imperative (ActivateCommander code) -> do
-                  serversRecords <- rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = "activation_code:" <> code }
-                  case find ((\r -> serversRecordActivationCode r == code && serversRecordServerIdentifier r == "") . snd) serversRecords of
-                     Nothing -> throwE "Invalid activation code!"
-                     Just (id, activationRecord) -> do
-                         rmUpdateInstance session serversDefinition id activationRecord { serversRecordServerIdentifier = getServerId m }
-                  -- case res of
-                  --     Left e  -> lift $ replyToMsg m ("Error: " <> pack e)
-                  --     Right _ -> lift $ replyToMsg m "Successfully activated!"
+                  let query = defaultRMQuery { rmQ = "activation_code:" <> code }
+                  serversRecords <- rmDefinitionSearch session serversDefinition query
+                  (id, activationRecord) <- maybe (throwE "Invalid activation code!") return $
+                                            find ((== code) . serversRecordServerIdentifier . snd) serversRecords
+                  let newActivationRecord = activationRecord { serversRecordServerIdentifier = getServerId m }
+                  rmUpdateInstance session serversDefinition id newActivationRecord
+                  lift $ replyToMsg m "Successfully activated!"
 
               QueryDatabase target exercise -> do
                   amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (userId $ messageAuthor m) target exercise
