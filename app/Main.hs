@@ -4,6 +4,7 @@ module Main where
 import Data.Aeson
 import Data.Aeson.Types
 
+import Data.Function
 import Data.List
 import Data.Text as T hiding (any, find)
 import qualified Data.Text.IO as TIO
@@ -11,6 +12,7 @@ import qualified Data.ByteString as BS
 
 import Data.Maybe
 
+import Control.Lens hiding ((.=))
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -27,42 +29,40 @@ import PushupsCommander
 
 eventHandler :: Session -> Event -> DiscordHandler ()
 eventHandler session event = case event of
-    MessageCreate m -> do
-        x <- runExceptT (
-            unless (fromBot m) $ do
+    MessageCreate m -> unless (fromBot m) $ do
+        x <- runExceptT $ do
             command <- parseMsg $ messageText m
             log ("Got command!\n" <> pack (show command))
             case command of
 
               AddExercise amount exercise -> do
-                  liftIO $ addExercise $ makePRecord m amount exercise
+                  addExercise $ makePRecord m amount exercise
                   lift . void . restCall $ R.CreateReaction (messageChannel m, messageId m) "muscle"
 
               RmExercise amount exercise -> do
-                  liftIO $ addExercise $ makePRecord m (-amount) exercise
+                  addExercise $ makePRecord m (-amount) exercise
                   lift . void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
               -- TODO: serversRecordServerIdentifier r == "", and search for more possible? can we have duplicated codes in that case? or just remove?
               Imperative (ActivateCommander code) -> do
-                  let query = defaultRMQuery { rmQ = "activation_code:" <> code }
-                  serversRecords <- rmDefinitionSearch session serversDefinition query
-                  (id, activationRecord) <- maybe (throwE "Invalid activation code!") return $
-                                            find ((== code) . serversRecordServerIdentifier . snd) serversRecords
-                  let newActivationRecord = activationRecord { serversRecordServerIdentifier = getServerId m }
-                  rmUpdateInstance session serversDefinition id newActivationRecord
+                  serversRecords <- rmDefinitionSearch session serversDefinition defaultRMQuery{ rmQ = "activation_code:" <> code }
+                  (id, activationRecord) <- find ((== code) . (^.serverIdentifier) . snd) serversRecords /// "Invalid activation code!" 
+                  rmUpdateInstance session serversDefinition id (activationRecord & serverIdentifier .~ getServerId m)
                   lift $ replyToMsg m "Successfully activated!"
 
               QueryDatabase target exercise -> do
                   amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (userId $ messageAuthor m) target exercise
                   lift . void . restCall $ R.CreateMessage (messageChannel m) (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!"))
-            :: ExceptT String DiscordHandler ())
+
+              Ok -> return ()
+
         case x of
             Left err -> replyToMsg m $ pack $ show err
             _ -> return ()
     _ -> return () 
 
     where
-    addExercise :: PushupsRecord -> IO (Maybe (Ref PushupsRecord))
+    addExercise :: MonadIO m => PushupsRecord -> ExceptT RMError m (Ref PushupsRecord)
     addExercise = rmAddInstance session pushupsDefinition
 
     log :: MonadIO m => Text -> m ()

@@ -1,6 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
 module PushupsRecordM where
 
+import Control.Lens hiding ((.=))
 import Data.Maybe
 import Data.Text
 
@@ -43,9 +44,9 @@ instance FromJSON UsersRecord where
         [name] <- v .: "master_username"
         return (UsersRecord name)
 
-data ServersRecord = ServersRecord { serversRecordServerIdentifier :: ServerIdentifier
-                                   , serversRecordActivationCode   :: ActivationCode
-                                   , serversRecordOwner            :: Owner }
+data ServersRecord = ServersRecord { _serverIdentifier :: ServerIdentifier
+                                   , _activationCode   :: ActivationCode
+                                   , _owner            :: Owner }
                                    deriving (Show)
 
 instance Record ServersRecord
@@ -78,3 +79,4 @@ instance ToJSON ExercisesRecord where
         , "Amount" .= amount
         , "Exercise Type" .= exercise ]
 
+makeLenses ''ServersRecord
