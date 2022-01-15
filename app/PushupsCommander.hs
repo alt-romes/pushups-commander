@@ -2,10 +2,12 @@
 module PushupsCommander where
 
 import GHC.Generics
+import Data.Functor
 import Data.Bifunctor
 import Data.Char
 import Text.Read
 import Data.Text as T
+import Control.Monad.Trans.Except
 
 import RecordM
 
@@ -20,6 +22,7 @@ data Command = AddExercise Amount Exercise
              | RmExercise Amount Exercise
              | QueryDatabase Target Exercise
              | Imperative ImperativeCommand
+             | Ok
              deriving (Show)
 
 newtype ImperativeCommand = ActivateCommander Text
@@ -27,37 +30,36 @@ newtype ImperativeCommand = ActivateCommander Text
 
 data Target = Today | All | Server deriving (Show, Eq)
 
-data ParseError = Ok | FailParseAmount | FailNonEmptyWord | FailArgument deriving (Show)
+-- data ParseError = FailParseAmount | FailNonEmptyWord | FailArgument deriving (Show)
+type ParseError = String
 
-parseMsg :: Text -> Either ParseError Command
+parseMsg :: Text -> Except ParseError Command
 parseMsg m = case uncons $ whitespace m of
-        Just ('+', m') -> do
-            (amount, exercise) <- parseAmountAndExercise m'
-            return (AddExercise amount exercise)
-        Just ('-', m') -> do
-            (amount, exercise) <- parseAmountAndExercise m'
-            return (RmExercise amount exercise)
-        Just ('?', m') -> do
-            (target, exercise) <- parseTargetAndExercise m'
-            return (QueryDatabase target exercise)
-        Just ('!', m') -> Imperative <$> parseImperativeCommand m'
-        _     -> Left Ok
+        Just ('+', m') -> parseAmountAndExercise m'
+                          <&> uncurry AddExercise
+        Just ('-', m') -> parseAmountAndExercise m'
+                          <&> uncurry RmExercise
+        Just ('?', m') -> parseTargetAndExercise m'
+                          <&> maybe Ok (uncurry QueryDatabase)
+        Just ('!', m') -> parseImperativeCommand m'
+                          <&> maybe Ok Imperative
+        _     -> return Ok
 
     where
-    parseImperativeCommand :: Text -> Either ParseError ImperativeCommand
+    parseImperativeCommand :: Text -> Except ParseError (Maybe ImperativeCommand)
     parseImperativeCommand s = case takeWord s of
-        ("activate", s') -> ActivateCommander <$> changeLeft FailArgument (parseNonEmptyWord s')
-        _ -> Left Ok
+        ("activate", s') -> Just . ActivateCommander <$> parseNonEmptyWord s'
+        _ -> return Nothing
 
-    parseNonEmptyWord :: Text -> Either ParseError Text
+    parseNonEmptyWord :: Text -> Except ParseError Text
     parseNonEmptyWord s = case takeWord s of
-        ("", _) -> Left FailNonEmptyWord
+        ("", _) -> throwE "Parser failed expecting a word"
         (w, _) -> return w
 
-    parseAmount :: Text -> Either ParseError (Amount, Text)
+    parseAmount :: Text -> Except ParseError (Amount, Text)
     parseAmount s = do
         let (a, s') = T.span isDigit $ whitespace s
-        amount <- changeLeft FailParseAmount $ readEither $ unpack a
+        amount <- except $ readEither $ unpack a
         return (amount, s')
 
     parseExercise :: Text -> Exercise
@@ -73,30 +75,25 @@ parseMsg m = case uncons $ whitespace m of
         ("kilometers", _) -> Kilometers
         _                 -> Unknown $ whitespace s
 
-    parseTarget :: Text -> Either ParseError (Target, Text)
+    parseTarget :: Text -> Except ParseError (Maybe (Target, Text))
     parseTarget s = case takeWord s of
-        ("t", s')      -> return (Today, s')
-        ("today", s')  -> return (Today, s')
-        ("a", s')      -> return (All, s')
-        ("all", s')    -> return (All, s')
-        ("s", s')      -> return (Server, s')
-        ("server", s') -> return (Server, s')
-        _             -> Left Ok
+        ("t", s')      -> return $ Just (Today, s')
+        ("today", s')  -> return $ Just (Today, s')
+        ("a", s')      -> return $ Just (All, s')
+        ("all", s')    -> return $ Just (All, s')
+        ("s", s')      -> return $ Just (Server, s')
+        ("server", s') -> return $ Just (Server, s')
+        _              -> return Nothing
 
     whitespace :: Text -> Text
     whitespace = T.dropWhile (== ' ')
 
-    parseAmountAndExercise :: Text -> Either ParseError (Amount, Exercise)
+    parseAmountAndExercise :: Text -> Except ParseError (Amount, Exercise)
     parseAmountAndExercise s = second parseExercise <$> parseAmount s
 
-    parseTargetAndExercise :: Text -> Either ParseError (Target, Exercise)
-    parseTargetAndExercise s = second parseExercise <$> parseTarget s
+    parseTargetAndExercise :: Text -> Except ParseError (Maybe (Target, Exercise))
+    parseTargetAndExercise s = (second parseExercise <$>) <$> parseTarget s
 
     takeWord :: Text -> (Text, Text)
     takeWord = T.span (/= ' ') . whitespace
-
-    changeLeft :: a -> Either b c -> Either a c
-    changeLeft newValue eitherValue = case eitherValue of
-        Left _ -> Left newValue
-        Right r -> Right r
 

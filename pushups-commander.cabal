@@ -45,4 +45,5 @@ executable pushups-commander
         lens,
         lens-aeson,
         transformers,
-        vector
+        vector,
+        mtl

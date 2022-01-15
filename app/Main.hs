@@ -13,6 +13,8 @@ import Data.Maybe
 
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.Except
 
 import Discord
 import Discord.Types
@@ -39,17 +41,16 @@ eventHandler session event = case event of
                   liftIO $ addExercise session $ makePRecord m (-amount) exercise
                   void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
 
-              -- todo can't exist already
               Imperative (ActivateCommander code) -> do
-                  maybeServersRecords <- liftIO $ rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = "activation_code:" <> code }
-                  case maybeServersRecords of
-                    Nothing -> replyToMsg m "An error has occurred when activating."
-                    Just serversRecords -> do
-                      case find ((== code) . serversRecordActivationCode . snd) serversRecords of
+                  res <- liftIO $ runExceptT $ do
+                      serversRecords <- rmDefinitionSearch session serversDefinition defaultRMQuery { rmQ = "activation_code:" <> code }
+                      case find ((\r -> serversRecordActivationCode r == code && serversRecordServerIdentifier r == "") . snd) serversRecords of
+                         Nothing -> throwE "Invalid activation code!"
                          Just (id, activationRecord) -> do
-                             liftIO $ rmUpdateInstance session serversDefinition id activationRecord { serversRecordServerIdentifier = getServerId m }
-                             replyToMsg m "Successfully activated!"
-                         Nothing -> replyToMsg m "Invalid activation code!"
+                             lift $ rmUpdateInstance session serversDefinition id activationRecord { serversRecordServerIdentifier = getServerId m }
+                  case res of
+                      Left e  -> replyToMsg m ("Error: " <> pack e)
+                      Right _ -> replyToMsg m "Successfully activated!"
 
               QueryDatabase target exercise -> do
                   amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (userId $ messageAuthor m) target exercise
