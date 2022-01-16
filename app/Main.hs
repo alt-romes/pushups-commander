@@ -27,25 +27,25 @@ import RecordM
 import PushupsRecordM
 import PushupsCommander
 
-commandHandler :: Session -> Message -> ExceptT String DiscordHandler()
-commandHandler s m = do
+commandHandler :: Message -> CobT DiscordHandler ()
+commandHandler m = do
     command <- parseMsg (messageText m)
     log command
     case command of
         AddExercise amount exercise -> do
-            addExercise s m amount exercise
-            createReaction m "muscle" & lift
+            addExercise m amount exercise
+            createReaction m "muscle" & liftCob
 
         RmExercise amount exercise  -> do
-            addExercise s m (-amount) exercise
-            createReaction m "thumbsup" & lift
+            addExercise m (-amount) exercise
+            createReaction m "thumbsup" & liftCob
 
         Imperative (ActivateCommander code) -> do
             let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code
             serversRecords         <- searchServers ("activation_code:" <> code)
             (id, activationRecord) <- find hasActivationCode serversRecords /// throwE "Invalid activation code!" 
             updateServer id (activationRecord & serverIdentifier .~ getServerId m)
-            replyToMsg m "Successfully activated!" & lift
+            replyToMsg m "Successfully activated!" & liftCob
 
         Ok -> return ()
 
@@ -54,19 +54,19 @@ commandHandler s m = do
         --     createMessage m (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!")) & lift
 
     where
-        addExercise :: MonadIO m => Session -> Message -> Amount -> Exercise -> ExceptT RMError m (Ref ExercisesRecord)
-        addExercise s m amount exercise = do
-            (serverUserId, _) <- rmGetOrAddInstanceM s serverUsersDefinition ("serveruser:" <> getServerId m <> "-" <> getUserId m) (createServerUser m)
-            rmAddInstance s exercisesDefinition (ExercisesRecord serverUserId amount exercise)
+        addExercise :: MonadIO m => Message -> Amount -> Exercise -> CobT m (Ref ExercisesRecord)
+        addExercise m amount exercise = do
+            (serverUserId, _) <- rmGetOrAddInstanceM serverUsersDefinition ("serveruser:" <> getServerId m <> "-" <> getUserId m) (createServerUser m)
+            rmAddInstance exercisesDefinition (ExercisesRecord serverUserId amount exercise)
             where
                 createServerUser m = do -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
-                    (serverId, ServersRecord server _ _)    <- rmDefinitionSearch s serversDefinition (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>=
+                    (serverId, ServersRecord server _ _)    <- rmDefinitionSearch serversDefinition (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>=
                                                                (/// throwE "Server hasn't been activated yet!")
-                    (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance s usersDefinition ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
+                    (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance usersDefinition ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
                     return (ServerUsersRecord newUserId serverId (getUserId m))
 
-        searchServers rmQ = rmDefinitionSearch s serversDefinition (defaultRMQuery & q .~ rmQ)
-        updateServer  = rmUpdateInstance s serversDefinition
+        searchServers rmQ = rmDefinitionSearch serversDefinition (defaultRMQuery & q .~ rmQ)
+        updateServer  = rmUpdateInstance serversDefinition
         getServerId = maybe "Discord direct message" (pack . show) . messageGuild
         getUserId = pack . show . DT.userId . messageAuthor
         log = liftIO . TIO.putStrLn . pack . show
@@ -85,7 +85,7 @@ main = do
              , discordOnEnd = liftIO $ TIO.putStrLn "Ended"
              , discordOnEvent = \case
                  MessageCreate m ->
-                   runExceptT (commandHandler session m)
+                   runCob session (commandHandler m)
                      >>= either (replyToMsg m . pack . show) return
                  _ -> return ()
              , discordOnLog = TIO.putStrLn
