@@ -44,7 +44,7 @@ commandHandler m = do
             let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code
             serversRecords         <- searchServers ("activation_code:" <> code)
             (id, activationRecord) <- find hasActivationCode serversRecords /// throwE "Invalid activation code!" 
-            updateServer id (activationRecord & serverIdentifier .~ getServerId m)
+            rmUpdateInstance id (activationRecord & serverIdentifier .~ getServerId m)
             replyToMsg m "Successfully activated!" & liftCob
 
         Ok -> return ()
@@ -56,17 +56,16 @@ commandHandler m = do
     where
         addExercise :: MonadIO m => Message -> Amount -> Exercise -> CobT m (Ref ExercisesRecord)
         addExercise m amount exercise = do
-            (serverUserId, _) <- rmGetOrAddInstanceM serverUsersDefinition ("serveruser:" <> getServerId m <> "-" <> getUserId m) (createServerUser m)
-            rmAddInstance exercisesDefinition (ExercisesRecord serverUserId amount exercise)
+            (serverUserId, _) <- rmGetOrAddInstanceM ("serveruser:" <> getServerId m <> "-" <> getUserId m) (createServerUser m)
+            rmAddInstance (ExercisesRecord serverUserId amount exercise)
             where
                 createServerUser m = do -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
-                    (serverId, ServersRecord server _ _)    <- rmDefinitionSearch serversDefinition (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>=
+                    (serverId, ServersRecord server _ _)    <- rmDefinitionSearch (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>=
                                                                (/// throwE "Server hasn't been activated yet!")
-                    (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance usersDefinition ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
+                    (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
                     return (ServerUsersRecord newUserId serverId (getUserId m))
 
-        searchServers rmQ = rmDefinitionSearch serversDefinition (defaultRMQuery & q .~ rmQ)
-        updateServer  = rmUpdateInstance serversDefinition
+        searchServers rmQ = rmDefinitionSearch (defaultRMQuery & q .~ rmQ)
         getServerId = maybe "Discord direct message" (pack . show) . messageGuild
         getUserId = pack . show . DT.userId . messageAuthor
         log = liftIO . TIO.putStrLn . pack . show

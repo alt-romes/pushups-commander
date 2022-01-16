@@ -11,19 +11,6 @@ import RecordM
 import PushupsCommander
 
 
-usersDefinition :: Definition UsersRecord
-usersDefinition = Definition "ROMES Pushups Users"
-
-serversDefinition :: Definition ServersRecord
-serversDefinition = Definition "ROMES Pushups Servers"
-
-serverUsersDefinition :: Definition ServerUsersRecord
-serverUsersDefinition = Definition "ROMES Pushups Server Users"
-
-exercisesDefinition :: Definition ExercisesRecord
-exercisesDefinition = Definition "ROMES Pushups Exercises"
-
-
 instance ToJSON Exercise where
     toJSON = toJSON . toLower . pack . show
 instance FromJSON Exercise where
@@ -43,7 +30,8 @@ type ServerUsername = Text
 type Id = Int
 
 newtype UsersRecord = UsersRecord { _masterUsername :: MasterUsername }
-instance Record UsersRecord
+instance Record UsersRecord where
+    definition = "ROMES Pushups Users"
 instance ToJSON UsersRecord where
     toJSON (UsersRecord mu) = object
         [ "Master Username" .= mu ]
@@ -58,7 +46,8 @@ data ServersRecord = ServersRecord { _serverIdentifier :: ServerIdentifier
                                    , _activationCode   :: ActivationCode
                                    , _owner            :: Owner }
                                    deriving (Show)
-instance Record ServersRecord
+instance Record ServersRecord where
+    definition = "ROMES Pushups Servers"
 instance ToJSON ServersRecord where
     toJSON (ServersRecord si co o) = object
         [ "Server"          .= si
@@ -78,7 +67,8 @@ data ServerUsersRecord = ServerUsersRecord { _userId         :: Ref UsersRecord
                                            , _serverId       :: Ref ServersRecord
                                            , _serverUsername :: ServerUsername }
                                            deriving (Show)
-instance Record ServerUsersRecord
+instance Record ServerUsersRecord where
+    definition = "ROMES Pushups Server Users"
 instance ToJSON ServerUsersRecord where
     toJSON (ServerUsersRecord (Ref users) (Ref servers) serverUsername) = object
         [ "Master Username" .= show users
@@ -94,7 +84,8 @@ instance FromJSON ServerUsersRecord where
 data ExercisesRecord = ExercisesRecord { _serverUserId :: Ref ServerUsersRecord
                                        , _amount       :: Amount
                                        , _exercise     :: Exercise }
-instance Record ExercisesRecord
+instance Record ExercisesRecord where
+    definition = "ROMES Pushups Exercises"
 instance ToJSON ExercisesRecord where
     toJSON (ExercisesRecord (Ref serverUsers) amount exercise) = object
         [ "Server Username" .= show serverUsers
