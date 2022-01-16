@@ -10,6 +10,7 @@ import Data.List
 import Data.Text as T hiding (any, find)
 import qualified Data.Text.IO as TIO
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 
 import Data.Maybe
 
@@ -60,12 +61,12 @@ commandHandler m = do
             rmAddInstance (ExercisesRecord serverUserId amount exercise)
             where
                 createServerUser m = do -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
-                    (serverId, ServersRecord server _ _)    <- rmDefinitionSearch (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>=
-                                                               (/// throwE "Server hasn't been activated yet!")
-                    (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
+                    (serverId, ServersRecord server _ _) <- rmDefinitionSearch (defaultRMQuery { _q = "server:" <> getServerId m }) <&> listToMaybe >>=
+                                                            (/// throwE "Server hasn't been activated yet!")
+                    (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
                     return (ServerUsersRecord newUserId serverId (getUserId m))
 
-        searchServers rmQ = rmDefinitionSearch (defaultRMQuery & q .~ rmQ)
+        searchServers rmQ = rmDefinitionSearch (defaultRMQuery { _q = rmQ })
         getServerId = maybe "Discord direct message" (pack . show) . messageGuild
         getUserId = pack . show . DT.userId . messageAuthor
         log = liftIO . TIO.putStrLn . pack . show
