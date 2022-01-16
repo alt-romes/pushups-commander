@@ -35,14 +35,10 @@ type ParseError = String
 
 parseMsg :: Monad m => Text -> ExceptT ParseError m Command
 parseMsg m = case uncons $ whitespace m of
-        Just ('+', m') -> parseAmountAndExercise m'
-                          <&> uncurry AddExercise
-        Just ('-', m') -> parseAmountAndExercise m'
-                          <&> uncurry RmExercise
-        Just ('?', m') -> parseTargetAndExercise m'
-                          <&> maybe Ok (uncurry QueryDatabase)
-        Just ('!', m') -> parseImperativeCommand m'
-                          <&> maybe Ok Imperative
+        Just ('+', m') -> parseAmountAndExercise m' <&> uncurry AddExercise
+        Just ('-', m') -> parseAmountAndExercise m' <&> uncurry RmExercise
+        Just ('?', m') -> parseTargetAndExercise m' <&> maybe Ok (uncurry QueryDatabase)
+        Just ('!', m') -> parseImperativeCommand m' <&> maybe Ok Imperative
         _     -> return Ok
 
     where

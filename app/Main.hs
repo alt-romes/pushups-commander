@@ -1,6 +1,7 @@
-{-# LANGUAGE LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Debug.Trace
 import Data.Aeson
 import Data.Aeson.Types
 
@@ -19,13 +20,15 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 
 import Discord
-import Discord.Types
+import Discord.Types as DT
 import qualified Discord.Requests as R
 
 import RecordM
 import PushupsRecordM
 import PushupsCommander
 
+commandHandler :: Session -> Message -> Command -> DiscordHandler()
+commandHandler = undefined
 
 eventHandler :: Session -> Event -> DiscordHandler ()
 eventHandler session event = case event of
@@ -36,23 +39,24 @@ eventHandler session event = case event of
             case command of
 
               AddExercise amount exercise -> do
-                  addExercise $ makePRecord m amount exercise
-                  lift . void . restCall $ R.CreateReaction (messageChannel m, messageId m) "muscle"
+                  addExercise m amount exercise
+                  createReaction m "muscle" & lift
 
               RmExercise amount exercise -> do
-                  addExercise $ makePRecord m (-amount) exercise
-                  lift . void . restCall $ R.CreateReaction (messageChannel m, messageId m) "thumbsup"
+                  addExercise m (-amount) exercise
+                  createReaction m "thumbsup" & lift
 
-              -- TODO: serversRecordServerIdentifier r == "", and search for more possible? can we have duplicated codes in that case? or just remove?
               Imperative (ActivateCommander code) -> do
-                  serversRecords <- rmDefinitionSearch session serversDefinition defaultRMQuery{ rmQ = "activation_code:" <> code }
-                  (id, activationRecord) <- find ((== code) . (^.serverIdentifier) . snd) serversRecords /// "Invalid activation code!" 
-                  rmUpdateInstance session serversDefinition id (activationRecord & serverIdentifier .~ getServerId m)
-                  lift $ replyToMsg m "Successfully activated!"
+                  let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code
+                  serversRecords         <- searchServers (defaultRMQuery & q .~ "activation_code:" <> code)
+                  (id, activationRecord) <- find hasActivationCode serversRecords /// throwE "Invalid activation code!" 
+                  updateServer id (activationRecord & serverIdentifier .~ getServerId m)
+                  replyToMsg m "Successfully activated!" & lift
 
               QueryDatabase target exercise -> do
-                  amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (userId $ messageAuthor m) target exercise
-                  lift . void . restCall $ R.CreateMessage (messageChannel m) (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!"))
+
+                  amount <- liftIO $ definitionSearch session "" $ someQuery (messageGuild m) (DT.userId $ messageAuthor m) target exercise
+                  createMessage m (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!")) & lift
 
               Ok -> return ()
 
@@ -62,8 +66,20 @@ eventHandler session event = case event of
     _ -> return () 
 
     where
-    addExercise :: MonadIO m => PushupsRecord -> ExceptT RMError m (Ref PushupsRecord)
-    addExercise = rmAddInstance session pushupsDefinition
+    addExercise :: MonadIO m => Message -> Amount -> Exercise -> ExceptT RMError m (Ref ExercisesRecord)
+    addExercise m amount exercise = do
+        -- todo: how to abstract this logic onto getoradd?
+        serverUsers  <- rmDefinitionSearch session serverUsersDefinition (defaultRMQuery & q .~ "serveruser:" <> getServerId m <> "-" <> getUserId m)
+        serverUserId <- case serverUsers of
+                          [] -> do
+                              (serverId, ServersRecord server _ _) <- rmDefinitionSearch session serversDefinition (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>= (/// throwE "Server hasn't been activated yet!")
+                              (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance session usersDefinition ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
+                              rmAddInstance session serverUsersDefinition (ServerUsersRecord newUserId serverId (getUserId m))
+                          (serverUserId, _):_ -> return serverUserId
+        rmAddInstance session exercisesDefinition (ExercisesRecord serverUserId amount exercise)
+
+    searchServers = rmDefinitionSearch session serversDefinition
+    updateServer  = rmUpdateInstance session serversDefinition
 
     log :: MonadIO m => Text -> m ()
     log = void . liftIO . TIO.putStrLn
@@ -77,10 +93,19 @@ eventHandler session event = case event of
         def { R.messageDetailedContent = text
             , R.messageDetailedReference = Just $ def { referenceMessageId = Just (messageId m) } }
 
+    createReaction :: Message -> Text -> DiscordHandler ()
+    createReaction m = void . restCall . R.CreateReaction (messageChannel m, messageId m)
+
+    createMessage :: Message -> Text -> DiscordHandler ()
+    createMessage m = void . restCall . R.CreateMessage (messageChannel m)
+
     getServerId :: Message -> ServerIdentifier
     getServerId m = case messageGuild m of
                       Nothing -> "Discord direct message"
                       Just id -> pack $ show id
+
+    getUserId :: Message -> ServerUsername
+    getUserId = pack . show .DT.userId . messageAuthor
 
 
 ---- Interaction with RecordM -----
@@ -94,14 +119,6 @@ type Username = Text
 
 data PushupsRecord = PushupsRecord GuildId UserId Username Amount Exercise
                 deriving (Show)
-
-instance FromJSON Exercise where
-    parseJSON = withText "Exercise" $ \case
-          "pushups" -> return Pushups
-          "abs" -> return Abs
-          "squats" -> return Squats
-          "kilometers" -> return Kilometers
-          _ -> fail "Error parsing exercise from JSON"
 
 instance ToJSON PushupsRecord where
     toJSON (PushupsRecord sid uid username amount exercise) = object
@@ -125,7 +142,7 @@ instance FromJSON PushupsRecord where
 instance Record PushupsRecord where
 
 makePRecord :: Message -> Amount -> Exercise -> PushupsRecord
-makePRecord m = PushupsRecord (fromJust $  messageGuild m) (userId $ messageAuthor m) (userName $ messageAuthor m)
+makePRecord m = PushupsRecord (fromJust $  messageGuild m) (DT.userId $ messageAuthor m) (userName $ messageAuthor m)
 
 
 ----- Run Discord Bot -----
@@ -160,4 +177,5 @@ someQuery serverID userID target exercise = object
         [ "soma" .= object
             [ "sum" .= object
                 [ "field" .= ("amount" :: Text) ] ] ] ]
+
 
