@@ -49,8 +49,10 @@ instance ToJSON UsersRecord where
         [ "Master Username" .= mu ]
 instance FromJSON UsersRecord where
     parseJSON = withObject "user record" $ \v -> do
-        [name] <- v .: "master_username"
+        [name] <- v .:? "master_username" .!= []
         return (UsersRecord name)
+
+-- Optional fields should be Maybes, unless they have a default value
 
 data ServersRecord = ServersRecord { _serverIdentifier :: ServerIdentifier
                                    , _activationCode   :: ActivationCode
@@ -66,9 +68,9 @@ instance FromJSON ServersRecord where
     parseJSON = withObject "server record" $ \v -> do
         -- Important to take into consideration that all values come as arrays,
         -- so we must select the information on parse
-        [si] <- v .:? "server"          // [""]
-        [co] <- v .:? "activation_code" // [""]
-        [o]  <- v .:? "owner"           // [""]
+        [si] <- v .:? "server"          .!= [""] -- Default value
+        [co] <- v .:  "activation_code"          -- Assumed to exist (is mandatory)
+        [o]  <- v .:  "owner"
         return (ServersRecord si co o)
 
 
@@ -84,9 +86,9 @@ instance ToJSON ServerUsersRecord where
         , "Server Username" .= serverUsername ]
 instance FromJSON ServerUsersRecord where
     parseJSON = withObject "server users record" $ \v -> do
-        [mu] <- v .:? "master_username" // [] -- Blow up... TODO: maybe return ref 0 ?? maybe Ref could be Error
-        [s]  <- v .:? "server"          // [] -- Blow up?
-        [su] <- v .:? "server_username" // [""]
+        [mu] <- v .: "master_username"
+        [s]  <- v .: "server"
+        [su] <- v .: "server_username"
         return (ServerUsersRecord (Ref $ read mu) (Ref $ read s) su)
 
 data ExercisesRecord = ExercisesRecord { _serverUserId :: Ref ServerUsersRecord
@@ -100,9 +102,9 @@ instance ToJSON ExercisesRecord where
         , "Exercise Type"   .= exercise ]
 instance FromJSON ExercisesRecord where
     parseJSON = withObject "exercises record" $ \v -> do
-        [su] <- v .:? "server_username" // [] -- Blow up?
-        [a]  <- v .:? "amount"          // ["0"]
-        [e]  <- v .:? "exercise_type"   // [] -- Blow up?
+        [su] <- v .: "server_username"
+        [a]  <- v .: "amount"
+        [e]  <- v .: "exercise_type"
         return (ExercisesRecord (Ref $ read su) (read a) e)
 
 makeLenses ''UsersRecord

@@ -32,7 +32,7 @@ commandHandler = undefined
 
 eventHandler :: Session -> Event -> DiscordHandler ()
 eventHandler session event = case event of
-    MessageCreate m -> unless (fromBot m) $ do
+    MessageCreate m -> do
         x <- runExceptT $ do
             command <- parseMsg $ messageText m
             log ("Got command!\n" <> pack (show command))
@@ -68,14 +68,11 @@ eventHandler session event = case event of
     where
     addExercise :: MonadIO m => Message -> Amount -> Exercise -> ExceptT RMError m (Ref ExercisesRecord)
     addExercise m amount exercise = do
-        -- todo: how to abstract this logic onto getoradd?
-        serverUsers  <- rmDefinitionSearch session serverUsersDefinition (defaultRMQuery & q .~ "serveruser:" <> getServerId m <> "-" <> getUserId m)
-        serverUserId <- case serverUsers of
-                          [] -> do
-                              (serverId, ServersRecord server _ _) <- rmDefinitionSearch session serversDefinition (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>= (/// throwE "Server hasn't been activated yet!")
-                              (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance session usersDefinition ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
-                              rmAddInstance session serverUsersDefinition (ServerUsersRecord newUserId serverId (getUserId m))
-                          (serverUserId, _):_ -> return serverUserId
+        (serverUserId, _) <- rmGetOrAddInstanceM session serverUsersDefinition ("serveruser:" <> getServerId m <> "-" <> getUserId m) (do
+                                  (serverId, ServersRecord server _ _) <- rmDefinitionSearch session serversDefinition (defaultRMQuery & q .~ "server:" <> getServerId m) <&> listToMaybe >>= (/// throwE "Server hasn't been activated yet!")
+                                  (newUserId, UsersRecord masterUsername) <- rmGetOrAddInstance session usersDefinition ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
+                                  return (ServerUsersRecord newUserId serverId (getUserId m))
+                                )
         rmAddInstance session exercisesDefinition (ExercisesRecord serverUserId amount exercise)
 
     searchServers = rmDefinitionSearch session serversDefinition
