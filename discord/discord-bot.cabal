@@ -1,5 +1,5 @@
 cabal-version:      2.4
-name:               pushups-commander
+name:               discord-bot
 version:            0.1.0.0
 
 -- A short (one-line) description of the package.
@@ -21,14 +21,8 @@ maintainer:         rodrigo.m.mesquita@gmail.com
 -- category:
 extra-source-files: CHANGELOG.md
 
-executable pushups-commander
+executable discord-bot
     main-is:          Main.hs 
-    other-modules:    PushupsCommander,
-                      PushupsRecordM
-                      -- Slack
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
     hs-source-dirs:   app
     default-language: Haskell2010
     ghc-options:      -threaded -fllvm
@@ -45,5 +39,6 @@ executable pushups-commander
         aeson,
 
         cob^>=0.1.0.0,
+        pushups-logic,
+        discord-haskell^>=1.11.0
 
-        discord-haskell ^>=1.11.0

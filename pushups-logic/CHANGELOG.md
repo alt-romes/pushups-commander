@@ -1,4 +1,4 @@
-# Revision history for pushups-commander
+# Revision history for pushups-logic
 
 ## 0.1.0.0 -- YYYY-mm-dd
 

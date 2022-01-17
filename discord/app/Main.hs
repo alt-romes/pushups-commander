@@ -25,7 +25,6 @@ import Discord.Types as DT
 import qualified Discord.Requests as R
 
 import RecordM
-import PushupsRecordM
 import PushupsCommander
 
 eventHandler :: RMSession -> Event -> DiscordHandler ()

@@ -1,8 +1,7 @@
 -- {-# LANGUAGE OverloadedStrings #-}
-module Slack where
+module Main where
 
 import RecordM
-import PushupsRecordM
 import PushupsCommander
 
-
+main = print "Hi"
