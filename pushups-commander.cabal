@@ -23,8 +23,7 @@ extra-source-files: CHANGELOG.md
 
 executable pushups-commander
     main-is:          Main.hs 
-    other-modules:    RecordM,
-                      PushupsCommander,
+    other-modules:    PushupsCommander,
                       PushupsRecordM
                       -- Slack
 
@@ -35,16 +34,16 @@ executable pushups-commander
     ghc-options:      -threaded -fllvm
     build-depends:
         base ^>= 4.15.0.0,
+
         text,
-        aeson,
-        unliftio,
-        discord-haskell ^>=1.11.0,
-        http-conduit,
-        http-types,
         bytestring,
-        time,
-        lens,
-        lens-aeson,
+
+        mtl,
         transformers,
-        vector,
-        mtl
+
+        lens,
+        aeson,
+
+        cob^>=0.1.0.0,
+
+        discord-haskell ^>=1.11.0
