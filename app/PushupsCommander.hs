@@ -1,36 +1,76 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 module PushupsCommander where
 
-import GHC.Generics
-import Data.Functor
+import Data.Maybe (listToMaybe)
+import Data.List (find)
+import Control.Lens ((^?), (^.), (.~))
+import Data.Function ((&))
+import Data.Functor ((<&>))
 import Data.Bifunctor
 import Data.Char
 import Text.Read
-import Data.Text as T
+import Data.Text as T (Text, span, dropWhile, pack, unpack, uncons)
+import Data.Text.IO as TIO
+import Control.Monad.Trans
 import Control.Monad.Trans.Except
 
 import RecordM
+import PushupsRecordM
 
 
 ----- Main -----
 
 type Amount = Int
-
-data Exercise = Pushups | Abs | Squats | Kilometers | Unknown Text deriving (Generic, Show)
-
+data Exercise = Pushups | Abs | Squats | Kilometers | Unknown Text deriving (Show)
 data Command = AddExercise Amount Exercise
              | RmExercise Amount Exercise
              | QueryDatabase Target Exercise
              | Imperative ImperativeCommand
              | Ok
              deriving (Show)
-
 newtype ImperativeCommand = ActivateCommander Text
                           deriving (Show)
-
 data Target = Today | All | Server deriving (Show, Eq)
 
--- data ParseError = FailParseAmount | FailNonEmptyWord | FailArgument deriving (Show)
+
+commandHandler :: MonadIO m => ServerIdentifier -> ServerUsername -> Text -> (Text -> m ()) -> (Text -> m ()) -> CobT m ()
+commandHandler serverId userId messageText createReaction replyWith = do
+    command <- parseMsg messageText
+    log command
+    case command of
+        AddExercise amount exercise -> do
+            addExercise amount exercise
+            createReaction "muscle" & liftCobT
+
+        RmExercise amount exercise  -> do
+            addExercise (-amount) exercise
+            createReaction "thumbsup" & liftCobT
+
+        Imperative (ActivateCommander code) -> do
+            let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code
+            serversRecords         <- searchServers ("activation_code:" <> code)
+            (id, activationRecord) <- find hasActivationCode serversRecords /// throwE "Invalid activation code!" 
+            rmUpdateInstance id (activationRecord & serverIdentifier .~ serverId)
+            replyWith "Successfully activated!" & liftCobT
+
+        Ok -> return ()
+
+    where
+        addExercise :: MonadIO m => Amount -> Exercise -> CobT m (Ref ExercisesRecord)
+        addExercise amount exercise = do
+            (serverUserId, _) <- rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> userId) createServerUser
+            rmAddInstance (ExercisesRecord serverUserId amount exercise)
+            where
+                createServerUser = do -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
+                    (serverId, ServersRecord server _ _) <- rmDefinitionSearch (defaultRMQuery { _q = "server:" <> serverId }) >>=
+                                                            (/// throwE "Server hasn't been activated yet!") . listToMaybe
+                    (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> userId) (UsersRecord userId)
+                    return (ServerUsersRecord newUserId serverId userId)
+
+        searchServers rmQ = rmDefinitionSearch (defaultRMQuery { _q = rmQ })
+        log = liftIO . TIO.putStrLn . pack . show
+
+
 type ParseError = String
 
 parseMsg :: Monad m => Text -> ExceptT ParseError m Command

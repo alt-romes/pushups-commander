@@ -28,64 +28,37 @@ import RecordM
 import PushupsRecordM
 import PushupsCommander
 
-commandHandler :: Message -> CobT DiscordHandler ()
-commandHandler m = do
-    command <- parseMsg (messageText m)
-    log command
-    case command of
-        AddExercise amount exercise -> do
-            addExercise m amount exercise
-            createReaction m "muscle" & liftCob
+callCommandHandler :: Message -> CobT DiscordHandler ()
+callCommandHandler m =
+    commandHandler (getServerId m) (getUserId m) (messageContent m) (createReaction m) (replyToMsg m)
+        where
+            getServerId m = (maybe ("Discord-DM-" <> getUserId m) (pack . show) . messageGuildId) m
+            getUserId = pack . show . DT.userId . messageAuthor
 
-        RmExercise amount exercise  -> do
-            addExercise m (-amount) exercise
-            createReaction m "thumbsup" & liftCob
+replyToMsg :: Message -> Text -> DiscordHandler ()
+replyToMsg m text = void . restCall $
+  R.CreateMessageDetailed (messageChannelId m) $
+    def { R.messageDetailedContent = text
+        , R.messageDetailedReference = Just $ def { referenceMessageId = Just (messageId m) } }
 
-        Imperative (ActivateCommander code) -> do
-            let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code
-            serversRecords         <- searchServers ("activation_code:" <> code)
-            (id, activationRecord) <- find hasActivationCode serversRecords /// throwE "Invalid activation code!" 
-            rmUpdateInstance id (activationRecord & serverIdentifier .~ getServerId m)
-            replyToMsg m "Successfully activated!" & liftCob
-
-        Ok -> return ()
-
-        -- QueryDatabase target exercise -> do
-        --     amount <- liftIO $ definitionSearch s "" $ someQuery (messageGuild m) (DT.userId $ messageAuthor m) target exercise
-        --     createMessage m (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!")) & lift
-
-    where
-        addExercise :: MonadIO m => Message -> Amount -> Exercise -> CobT m (Ref ExercisesRecord)
-        addExercise m amount exercise = do
-            (serverUserId, _) <- rmGetOrAddInstanceM ("serveruser:" <> getServerId m <> "-" <> getUserId m) (createServerUser m)
-            rmAddInstance (ExercisesRecord serverUserId amount exercise)
-            where
-                createServerUser m = do -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
-                    (serverId, ServersRecord server _ _) <- rmDefinitionSearch (defaultRMQuery { _q = "server:" <> getServerId m }) <&> listToMaybe >>=
-                                                            (/// throwE "Server hasn't been activated yet!")
-                    (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> getUserId m) (UsersRecord $ getUserId m)
-                    return (ServerUsersRecord newUserId serverId (getUserId m))
-
-        searchServers rmQ = rmDefinitionSearch (defaultRMQuery { _q = rmQ })
-        getServerId = maybe "Discord direct message" (pack . show) . messageGuild
-        getUserId = pack . show . DT.userId . messageAuthor
-        log = liftIO . TIO.putStrLn . pack . show
-
-
+createReaction :: Message -> Text -> DiscordHandler ()
+createReaction m = void . restCall . R.CreateReaction (messageChannelId m, messageId m)
 
 ----- Run Discord Bot -----
 
 main :: IO ()
 main = do 
-    tok <- TIO.readFile "discord-token.secret"
-    session <- join $ makeSession <$> (BS.init <$> BS.readFile "cob-host.secret") <*> (BS.init <$> BS.readFile "cob-token.secret")
+    disctok  <- TIO.readFile "discord-token.secret"
+    host     <- BS.init <$> BS.readFile "cob-host.secret"
+    cobtoken <- BS.init <$> BS.readFile "cob-token.secret"
+    session  <- makeSession host cobtoken
     err <- runDiscord $ def
-             { discordToken = tok
+             { discordToken = disctok
              , discordOnStart = liftIO $ TIO.putStrLn "Started"
              , discordOnEnd = liftIO $ TIO.putStrLn "Ended"
              , discordOnEvent = \case
-                 MessageCreate m ->
-                   runCob session (commandHandler m)
+                 MessageCreate m -> unless (userIsBot $ messageAuthor m) $
+                   runCobT session (callCommandHandler m)
                      >>= either (replyToMsg m . pack . show) return
                  _ -> return ()
              , discordOnLog = TIO.putStrLn
@@ -93,19 +66,9 @@ main = do
     TIO.putStrLn err -- log breaking error
 
 
---- Util
-replyToMsg :: Message -> Text -> DiscordHandler ()
-replyToMsg m text = void . restCall $
-  R.CreateMessageDetailed (messageChannel m) $
-    def { R.messageDetailedContent = text
-        , R.messageDetailedReference = Just $ def { referenceMessageId = Just (messageId m) } }
 
-createReaction :: Message -> Text -> DiscordHandler ()
-createReaction m = void . restCall . R.CreateReaction (messageChannel m, messageId m)
-
-createMessage :: Message -> Text -> DiscordHandler ()
-createMessage m = void . restCall . R.CreateMessage (messageChannel m)
-
+-- createMessage :: Message -> Text -> DiscordHandler ()
+-- createMessage m = void . restCall . R.CreateMessage (messageChannel m)
 
 -- someQuery :: Maybe GuildId -> UserId -> Target -> Exercise -> Value
 -- someQuery serverID userID target exercise = object
@@ -123,3 +86,8 @@ createMessage m = void . restCall . R.CreateMessage (messageChannel m)
 --         [ "soma" .= object
 --             [ "sum" .= object
 --                 [ "field" .= ("amount" :: Text) ] ] ] ]
+--
+-- QueryDatabase target exercise -> do
+--     amount <- liftIO $ definitionSearch s "" $ someQuery (messageGuild m) (DT.userId $ messageAuthor m) target exercise
+--     createMessage m (pack (show target <> ": " <> show amount <> " " <> unpack (toLower (pack $ show exercise)) <> " done!")) & lift
+

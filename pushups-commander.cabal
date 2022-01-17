@@ -22,10 +22,11 @@ maintainer:         rodrigo.m.mesquita@gmail.com
 extra-source-files: CHANGELOG.md
 
 executable pushups-commander
-    main-is:          Main.hs
-    other-modules:    PushupsCommander,
-                      RecordM,
+    main-is:          Main.hs 
+    other-modules:    RecordM,
+                      PushupsCommander,
                       PushupsRecordM
+                      -- Slack
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -37,7 +38,7 @@ executable pushups-commander
         text,
         aeson,
         unliftio,
-        discord-haskell,
+        discord-haskell ^>=1.11.0,
         http-conduit,
         http-types,
         bytestring,

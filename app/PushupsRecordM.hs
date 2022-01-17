@@ -8,7 +8,7 @@ import Data.Text
 import Data.Aeson
 
 import RecordM
-import PushupsCommander
+import {-# SOURCE #-} PushupsCommander (Amount, Exercise(..))
 
 
 instance ToJSON Exercise where
