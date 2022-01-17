@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Debug.Trace
@@ -28,12 +28,17 @@ import RecordM
 import PushupsRecordM
 import PushupsCommander
 
-callCommandHandler :: Message -> CobT DiscordHandler ()
-callCommandHandler m =
-    commandHandler (getServerId m) (getUserId m) (messageContent m) (createReaction m) (replyToMsg m)
-        where
-            getServerId m = (maybe ("Discord-DM-" <> getUserId m) (pack . show) . messageGuildId) m
-            getUserId = pack . show . DT.userId . messageAuthor
+eventHandler :: RMSession -> Event -> DiscordHandler ()
+eventHandler session event = case event of
+    MessageCreate m -> unless (userIsBot $ messageAuthor m) $
+        runCobT session (commandHandler (getServerId m) (getUserId m) (messageContent m) (createReaction m) (replyToMsg m))
+         >>= either (replyToMsg m . pack . show) return
+    _ -> return ()
+
+    where
+        getServerId m = (maybe ("Discord-DM-" <> getUserId m) (pack . show) . messageGuildId) m
+        getUserId = pack . show . DT.userId . messageAuthor
+
 
 replyToMsg :: Message -> Text -> DiscordHandler ()
 replyToMsg m text = void . restCall $
@@ -56,11 +61,7 @@ main = do
              { discordToken = disctok
              , discordOnStart = liftIO $ TIO.putStrLn "Started"
              , discordOnEnd = liftIO $ TIO.putStrLn "Ended"
-             , discordOnEvent = \case
-                 MessageCreate m -> unless (userIsBot $ messageAuthor m) $
-                   runCobT session (callCommandHandler m)
-                     >>= either (replyToMsg m . pack . show) return
-                 _ -> return ()
+             , discordOnEvent = eventHandler session
              , discordOnLog = TIO.putStrLn
              , discordForkThreadForEvents = True }
     TIO.putStrLn err -- log breaking error
