@@ -47,7 +47,7 @@ commandHandler serverId userId messageText createReaction replyWith = do
             createReaction "thumbsup" & liftCobT
 
         Imperative (ActivateCommander code) -> do
-            let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code
+            let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && serverRecord^.serverIdentifier == ""
             serversRecords         <- searchServers ("activation_code:" <> code)
             (id, activationRecord) <- find hasActivationCode serversRecords /// throwE "Invalid activation code!" 
             rmUpdateInstance id (activationRecord & serverIdentifier .~ serverId)

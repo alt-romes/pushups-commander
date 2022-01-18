@@ -31,7 +31,7 @@ eventHandler :: RMSession -> Event -> DiscordHandler ()
 eventHandler session event = case event of
     MessageCreate m -> unless (userIsBot $ messageAuthor m) $
         runCobT session (commandHandler (getServerId m) (getUserId m) (messageContent m) (createReaction m) (replyToMsg m))
-         >>= either (replyToMsg m . pack . show) return
+         >>= either (replyToMsg m . pack) return
     _ -> return ()
 
     where

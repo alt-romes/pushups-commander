@@ -40,5 +40,6 @@ executable irc-bot
 
         cob^>=0.1.0.0,
         pushups-logic,
-        irc-client^>=1.1.2.2
+        irc-client^>=1.1.2.2,
+        irc-conduit
 
