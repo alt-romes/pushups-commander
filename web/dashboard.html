@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fitness/Workout Bot</title>
+    <link rel="stylesheet" href="style.css" media="all">
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/cal-heatmap/3.3.10/cal-heatmap.css" />
+</head>
+<body>
+    <script type="text/javascript" src="//d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="//cdn.jsdelivr.net/cal-heatmap/3.3.10/cal-heatmap.min.js"></script>
+
+    <section class="section m-0 p-0">
+      <!-- Navbar {{{ -->
+      <div class="container">
+        <div class="columns">
+          <div class="column is-10 is-offset-1">
+            <nav class="navbar my-5" role="navigation" aria-label="main navigation">
+              <div class="navbar-brand">
+                <a class="navbar-item" href="index.html">
+                  <p class="block is-size-5 has-text-weight-bold">
+                    Workout Bot
+                  </p>
+                  <!-- <img src="https://bulma.io/images/bulma-logo.png" width="112" height="28"> -->
+                </a>
+
+                <!-- <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="??"> -->
+                <!--     <span aria-hidden="true"></span> -->
+                <!--     <span aria-hidden="true"></span> -->
+                <!--     <span aria-hidden="true"></span> -->
+                <!-- </a> -->
+              </div>
+
+              <div class="navbar-menu">
+                <div class="navbar-start">
+
+                </div>
+
+                <div class="navbar-end">
+                  <div class="navbar-item">
+                    <div class="buttons">
+                      <a class="button is-dark has-text-weight-bold" href="dashboard.html">
+                        Dashboard
+                      </a>
+                      <a class="button is-light has-text-weight-bold" href="documentation.html">
+                        Documentation
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </nav>
+          </div>
+        </div>
+      </div>
+      <!-- }}} -->
+    </section>
+
+    <section class="section m-0 p-0">
+      <!-- Main Section {{{ -->
+      <div class="container">
+        <div class="columns">
+          <div class="column is-10 is-offset-1">
+            <div class="hero is-medium">
+              <div class="hero-body px-5 py-6">
+                <div class="columns is-vcentered">
+                  <div class="column is-12">
+                      <!-- <p class="heading"> -->
+                      <!--     This is your personal <em>daily exercise heatmap</em>. It's an overview of how much you've done in the last months. -->
+                      <!-- </p> -->
+                      <p class="heading">
+                          Overview: Daily Exercise Heatmap
+                      </p>
+                      <p>
+                          You've exercised <strong>34</strong> days out of
+                          <strong>70</strong> days ever since you started. That is
+                          <strong>48%</strong> of all days.
+                      </p>
+                      <p>
+                          Your current streak is <strong>24 days</strong> and your all time longest streak is <strong>24 days</strong>.
+                      </p>
+                      <br>
+                      <br>
+                      <div class="cal-heatmap is-hidden-touch is-hidden-desktop-only is-hidden-widescreen-only" id="cal-heatmap"></div>
+                      <div class="cal-heatmap is-hidden-touch is-hidden-fullhd" id="cal-heatmap-medium"></div>
+                      <div class="cal-heatmap is-hidden-desktop" id="cal-heatmap-small"></div>
+                      <script type="text/javascript">
+
+                        var cal = new CalHeatMap();
+                        cal.init({
+                            domain: "month",
+                            subDomain: "day",
+                            weekStartOnMonday: false,
+                            range: 12,
+                            cellSize: 12,
+                            cellRadius: 4,
+                            domainMargin: [1, 1, 1, 1],
+                            domainGutter: 10,
+                            domainLabelFormat: "%b '%y",
+                            legendCellSize: 5,
+                            legendCellPadding: 3,
+                            legendHorizontalPosition: "right",
+                            highlight: "now",
+                            start: new Date()
+                        });
+
+                        var cal_medium = new CalHeatMap();
+                        cal_medium.init({
+                            itemSelector: "#cal-heatmap-medium",
+                            domain: "month",
+                            subDomain: "day",
+                            weekStartOnMonday: false,
+                            range: 8,
+                            cellSize: 12,
+                            cellRadius: 4,
+                            domainMargin: [1, 1, 1, 1],
+                            domainGutter: 10,
+                            domainLabelFormat: "%b '%y",
+                            legendCellSize: 5,
+                            legendCellPadding: 3,
+                            legendHorizontalPosition: "right",
+                            highlight: "now",
+                            start: new Date()
+                        });
+
+                        var cal_small = new CalHeatMap();
+                        cal_small.init({
+                            itemSelector: "#cal-heatmap-small",
+                            domain: "month",
+                            subDomain: "day",
+                            weekStartOnMonday: false,
+                            range: 6,
+                            cellSize: 12,
+                            cellRadius: 4,
+                            domainMargin: [1, 1, 1, 1],
+                            domainGutter: 10,
+                            domainLabelFormat: "%b '%y",
+                            legendCellSize: 5,
+                            legendCellPadding: 3,
+                            legendHorizontalPosition: "right",
+                            highlight: "now",
+                            start: new Date()
+                        });
+
+                        // TODO: Range depends on window size (small = 6, big = 12)
+
+                      </script>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- }}} -->
+    </section>
+</body>
+</html>
