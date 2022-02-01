@@ -5,12 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Fitness/Workout Bot</title>
     <link rel="stylesheet" href="style.css" media="all">
-    <link rel="stylesheet" href="//cdn.jsdelivr.net/cal-heatmap/3.3.10/cal-heatmap.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/cal-heatmap/3.3.10/cal-heatmap.css" />
 </head>
 <body>
-    <script type="text/javascript" src="//d3js.org/d3.v3.min.js"></script>
-    <script type="text/javascript" src="//cdn.jsdelivr.net/cal-heatmap/3.3.10/cal-heatmap.min.js"></script>
-
     <section class="section m-0 p-0">
       <!-- Navbar {{{ -->
       <div class="container">
@@ -66,11 +63,8 @@
               <div class="hero-body px-5 py-6">
                 <div class="columns is-vcentered">
                   <div class="column is-12">
-                      <!-- <p class="heading"> -->
-                      <!--     This is your personal <em>daily exercise heatmap</em>. It's an overview of how much you've done in the last months. -->
-                      <!-- </p> -->
                       <p class="heading">
-                          Overview: Daily Exercise Heatmap
+                          Personal: Daily Exercise Heatmap
                       </p>
                       <p>
                           You've exercised <strong>34</strong> days out of
@@ -85,7 +79,13 @@
                       <div class="cal-heatmap is-hidden-touch is-hidden-desktop-only is-hidden-widescreen-only" id="cal-heatmap"></div>
                       <div class="cal-heatmap is-hidden-touch is-hidden-fullhd" id="cal-heatmap-medium"></div>
                       <div class="cal-heatmap is-hidden-desktop" id="cal-heatmap-small"></div>
+                      <!-- TODO: Update cal-heatmap to use upgraded d3 version -->
+                      <script type="text/javascript" src="https://d3js.org/d3.v3.min.js"></script>
+                      <script type="text/javascript" src="https://cdn.jsdelivr.net/cal-heatmap/3.3.10/cal-heatmap.min.js"></script>
                       <script type="text/javascript">
+
+                        var monthsago6 = new Date();
+                        monthsago6.setMonth(monthsago6.getMonth() - 5);
 
                         var cal = new CalHeatMap();
                         cal.init({
@@ -102,9 +102,11 @@
                             legendCellPadding: 3,
                             legendHorizontalPosition: "right",
                             highlight: "now",
-                            start: new Date()
+                            start: monthsago6
                         });
 
+                        var monthsago4 = new Date();
+                        monthsago4.setMonth(monthsago4.getMonth() - 3);
                         var cal_medium = new CalHeatMap();
                         cal_medium.init({
                             itemSelector: "#cal-heatmap-medium",
@@ -121,9 +123,11 @@
                             legendCellPadding: 3,
                             legendHorizontalPosition: "right",
                             highlight: "now",
-                            start: new Date()
+                            start: monthsago4
                         });
 
+                        var monthsago3 = new Date();
+                        monthsago3.setMonth(monthsago3.getMonth() - 2);
                         var cal_small = new CalHeatMap();
                         cal_small.init({
                             itemSelector: "#cal-heatmap-small",
@@ -140,11 +144,67 @@
                             legendCellPadding: 3,
                             legendHorizontalPosition: "right",
                             highlight: "now",
-                            start: new Date()
+                            start: monthsago3
                         });
 
-                        // TODO: Range depends on window size (small = 6, big = 12)
+                        // TODO: Range depends on window size (small = 6, big = 12) instead of hiding and showing divs
+                      </script>
+                      <br>
+                      <br>
+                      <!-- Upgrade cal-heatmap to recent version -->
+                      <p class="heading">Group: Leaderboard</p>
+                      <p>
+                        First is <strong>romes</strong> with <strong>330 pushups</strong> done, and second is <strong>tony</strong> with <strong>200 pushups</strong>.
+                      </p>
+                      <p>
+                        You're currently in <strong>1st</strong> place with <strong>330 pushups</strong> done.
+                      </p>
+                      <p>
+                        You're <strong>0 pushups</strong> away from <strong>1st</strong> place.
+                      </p>
+                      <br>
+                      <br>
+                      <div id="lines">
+                      </div>
+                      <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+                      <script type="module">
+                          import * as Plot from "https://cdn.skypack.dev/@observablehq/plot";
+                          // import * as L from "https://cdn.skypack.dev/@observablehq/stdlib";
+                          let aapl = [{Date: "2013-05-13", Open: 436.605316, High: 438.383728, Low: 433.868103, Close: 435.929688, "Adj Close": 435.929688, Volume: 2915700},
+                                      {Date: "2013-05-14", Open: 435.914795, High: 441.473633, Low: 435.735962, Close: 440.683777, "Adj Close": 440.683777, Volume: 3179000}]
+                          let amzn = [{Date: "2013-05-13", Open: 262.769989, High: 265.880005, Low: 262, Close: 264.51001, "Adj Close": 264.51001, Volume: 2149500},
+                                      {Date: "2013-05-14", Open: 264.5, High: 269.399994, Low: 264.029999, Close: 268.329987, "Adj Close": 268.329987, Volume: 2700000}]
+                          let stocks = [["AAPL", aapl], ["AMZN", amzn]]
+                                        .flatMap(([Symbol, data]) => data.map(d => ({Symbol, ...d})))
 
+                          let formatChange = x => d3.format("+d")((x - 1) * 100)
+
+                          let plot = Plot.plot({
+                              style: "overflow: visible;",
+                              y: {
+                                type: "log",
+                                grid: true,
+                                label: "↑ Change in price (%)",
+                                tickFormat: formatChange
+                              },
+                              marks: [
+                                Plot.ruleY([1]),
+                                Plot.line(stocks, Plot.normalizeY({
+                                  x: "Date", 
+                                  y: "Close",
+                                  stroke: "Symbol"
+                                })),
+                                Plot.text(stocks, Plot.selectLast(Plot.normalizeY({
+                                  x: "Date",
+                                  y: "Close",
+                                  z: "Symbol",
+                                  text: "Symbol",
+                                  textAnchor: "start",
+                                  dx: 3
+                                })))
+                              ]
+                            })
+                          document.getElementById("lines").appendChild(plot);
                       </script>
                   </div>
                 </div>

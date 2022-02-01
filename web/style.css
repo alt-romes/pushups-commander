@@ -13,3 +13,6 @@
     font-family: inherit;
 }
 
+#lines > svg {
+    margin: 0 auto;
+}
