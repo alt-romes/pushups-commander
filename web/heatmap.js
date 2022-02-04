@@ -1,5 +1,6 @@
-const datas2 = {
-    "took": 10, /* Data {{{ */
+
+const datas2 = { // {{{
+    "took": 10,
     "timed_out": false,
     "_shards": {
         "total": 5,
@@ -1050,10 +1051,10 @@ const datas2 = {
                 }
             ]
         }
-    } /* }}} */
-}
+    }
+} // }}}
 
-const datas = { // {{{
+const data = { // {{{
     "took": 18,
     "timed_out": false,
     "_shards": {
@@ -2094,29 +2095,19 @@ const datas = { // {{{
     }
 } // }}}
 
-let parser = data => {
-    const datap = data.aggregations["2"]["buckets"].flatMap(v => v["3"]["buckets"]).map(v => v["1"]["value"])
+const getDateMonthsAgo = m => { let d = new Date(); d.setMonth(d.getMonth() - m); return d };
 
-    const startTimestamp = new Date(2021, 1, 1)/1000
-    const mkTime = (weekOfYear, dayOfWeek) => ((weekOfYear - 1) * 7 + dayOfWeek) * 3600*24 + startTimestamp
-    const times = data.aggregations["2"]["buckets"].flatMap(v => v["3"]["buckets"].map(u => mkTime(v["key"], u["key"])))
+const startTimestamp = new Date(new Date().getFullYear()-1, 1, 1)/1000
+const mkTime = (weekOfYear, dayOfWeek) => ((weekOfYear - 1) * 7 + dayOfWeek) * 3600*24 + startTimestamp
+const datap = Object.fromEntries(
+    data.aggregations["2"]["buckets"].flatMap(v =>
+        v["3"]["buckets"].map(u =>
+            [mkTime(v["key"], u["key"]), u["1"]["value"]])))
 
-    var stats = {};
-    for (let i = 0; i < datap.length; i++)
-        stats[times[i]] = datap[i]
-
-    console.log(stats)
-    return stats;
-};
-
-var monthsago6 = new Date();
-monthsago6.setMonth(monthsago6.getMonth() - 11);
-var cal = new CalHeatMap();
-cal.init({
+const calConfig = {
     domain: "month",
     subDomain: "day",
     weekStartOnMonday: false,
-    range: 12,
     cellSize: 12,
     cellRadius: 4,
     domainMargin: [1, 1, 1, 1],
@@ -2127,51 +2118,30 @@ cal.init({
     legendHorizontalPosition: "right",
     highlight: "now",
     tooltip: true,
-    start: monthsago6,
-    data: datas,
-    afterLoadData: parser
+    data: datap,
+    /* Properties to overwrite */
+    start: new Date(),
+    range: 12,
+}
+
+new CalHeatMap().init({
+    ...calConfig,
+    range: 12,
+    start: getDateMonthsAgo(11)
 });
 
-var monthsago4 = new Date();
-monthsago4.setMonth(monthsago4.getMonth() - 7);
-var cal_medium = new CalHeatMap();
-cal_medium.init({
+new CalHeatMap().init({
+    ...calConfig,
     itemSelector: "#cal-heatmap-medium",
-    domain: "month",
-    subDomain: "day",
-    weekStartOnMonday: false,
     range: 8,
-    cellSize: 12,
-    cellRadius: 4,
-    domainMargin: [1, 1, 1, 1],
-    domainGutter: 10,
-    domainLabelFormat: "%b '%y",
-    legendCellSize: 5,
-    legendCellPadding: 3,
-    legendHorizontalPosition: "right",
-    highlight: "now",
-    start: monthsago4,
+    start: getDateMonthsAgo(7)
 });
 
-var monthsago3 = new Date();
-monthsago3.setMonth(monthsago3.getMonth() - 5);
-var cal_small = new CalHeatMap();
-cal_small.init({
+new CalHeatMap().init({
+    ...calConfig,
     itemSelector: "#cal-heatmap-small",
-    domain: "month",
-    subDomain: "day",
-    weekStartOnMonday: false,
     range: 6,
-    cellSize: 12,
-    cellRadius: 4,
-    domainMargin: [1, 1, 1, 1],
-    domainGutter: 10,
-    domainLabelFormat: "%b '%y",
-    legendCellSize: 5,
-    legendCellPadding: 3,
-    legendHorizontalPosition: "right",
-    highlight: "now",
-    start: monthsago3,
+    start: getDateMonthsAgo(5)
 });
 
 // TODO: Range depends on window size (small = 6, big = 12) instead of hiding and showing divs

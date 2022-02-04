@@ -1,11 +1,4 @@
 import * as Plot from "https://cdn.skypack.dev/@observablehq/plot";
-// import * as L from "https://cdn.skypack.dev/@observablehq/stdlib";
-let aapl = [{Date: "2013-05-13", Open: 436.605316, High: 438.383728, Low: 433.868103, Close: 435.929688, "Adj Close": 435.929688, Volume: 2915700},
-    {Date: "2013-05-14", Open: 435.914795, High: 441.473633, Low: 435.735962, Close: 440.683777, "Adj Close": 440.683777, Volume: 3179000}]
-let amzn = [{Date: "2013-05-13", Open: 262.769989, High: 265.880005, Low: 262, Close: 264.51001, "Adj Close": 264.51001, Volume: 2149500},
-    {Date: "2013-05-14", Open: 264.5, High: 269.399994, Low: 264.029999, Close: 268.329987, "Adj Close": 268.329987, Volume: 2700000}]
-let stocks = [["AAPL", aapl], ["AMZN", amzn]]
-    .flatMap(([Symbol, data]) => data.map(d => ({Symbol, ...d})))
 
 const data = // {{{ 
     {
@@ -390,7 +383,6 @@ const data = // {{{
     }
 // }}}
 
-
 const datap = data.aggregations["4"]["buckets"]
     .flatMap(v =>
         v["3"]["buckets"]
@@ -401,7 +393,7 @@ const datap = data.aggregations["4"]["buckets"]
         }}))
 console.log(datap)
 
-let plot = Plot.plot({
+const plot = Plot.plot({
     style: "overflow: visible;",
     color: {
         legend: true
@@ -418,5 +410,5 @@ let plot = Plot.plot({
         })
     ]
 })
-document.getElementById("lines").appendChild(plot);
 
+document.getElementById("lines").appendChild(plot);
