@@ -2099,10 +2099,8 @@ const getDateMonthsAgo = m => { let d = new Date(); d.setMonth(d.getMonth() - m)
 
 const startTimestamp = new Date(new Date().getFullYear()-1, 1, 1)/1000
 const mkTime = (weekOfYear, dayOfWeek) => ((weekOfYear - 1) * 7 + dayOfWeek) * 3600*24 + startTimestamp
-const datap = Object.fromEntries(
-    data.aggregations["2"]["buckets"].flatMap(v =>
-        v["3"]["buckets"].map(u =>
-            [mkTime(v["key"], u["key"]), u["1"]["value"]])))
+const datap = Object.fromEntries(data.aggregations["2"]["buckets"].flatMap(v =>
+                v["3"]["buckets"].map(u => [mkTime(v["key"], u["key"]), u["1"]["value"]])))
 
 const calConfig = {
     domain: "month",
@@ -2121,7 +2119,7 @@ const calConfig = {
     data: datap,
     /* Properties to overwrite */
     start: new Date(),
-    range: 12,
+    range: 12
 }
 
 new CalHeatMap().init({
