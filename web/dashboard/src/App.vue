@@ -77,21 +77,21 @@ import LinesGraph from './components/LinesGraph.vue'
                     <GroupRecentActivity />
                     <br>
 
-                    <!-- <p class="is-size-6 heading"> -->
-                    <!--   Personal: Daily Exercise Heatmap -->
-                    <!-- </p> -->
-                    <!-- <p> -->
-                    <!--   You've exercised <strong>34</strong> days out of -->
-                    <!--   <strong>70</strong> days ever since you started. That is -->
-                    <!--   <strong>48%</strong> of all days. -->
-                    <!-- </p> -->
-                    <!-- <p> -->
-                    <!--   Your current streak is <strong>24 days</strong> and your all time longest streak is <strong>24 days</strong>. -->
-                    <!-- </p> -->
-                    <!-- <br> -->
-                    <!-- <br> -->
-                    <!-- <Heatmap /> -->
-                    <!-- <br> -->
+                    <p class="is-size-6 heading">
+                      Personal: Daily Exercise Heatmap
+                    </p>
+                    <p>
+                      You've exercised <strong>34</strong> days out of
+                      <strong>70</strong> days ever since you started. That is
+                      <strong>48%</strong> of all days.
+                    </p>
+                    <p>
+                      Your current streak is <strong>24 days</strong> and your all time longest streak is <strong>24 days</strong>.
+                    </p>
+                    <br>
+                    <br>
+                    <Heatmap />
+                    <br>
 
                     <!-- Upgrade cal-heatmap to recent version -->
                     <p class="is-size-6 heading">Group: Leaderboard</p>
