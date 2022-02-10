@@ -1,18 +1,1 @@
 @import "https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css";
-
-.cal-heatmap .cal-heatmap-container {
-    margin: 0 auto;
-}
-
-.cal-heatmap .graph-label {
-    fill: var(--grey);
-    text-shadow: none;
-}
-
-.cal-heatmap .graph {
-    font-family: inherit;
-}
-
-/* #lines svg { */
-/*     margin: 0 auto; */
-/* } */
