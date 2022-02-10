@@ -7,10 +7,9 @@ import Data.Aeson.Types
 
 import Data.Function
 import Data.List
-import Data.Text as T hiding (any, find)
+import Data.Text as T (Text, pack)
 import qualified Data.Text.IO as TIO
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8
 
 import Data.Maybe
 
@@ -24,10 +23,10 @@ import Discord
 import Discord.Types as DT
 import qualified Discord.Requests as R
 
-import RecordM
+import Cob
 import PushupsCommander
 
-eventHandler :: RMSession -> Event -> DiscordHandler ()
+eventHandler :: CobSession -> Event -> DiscordHandler ()
 eventHandler session event = case event of
     MessageCreate m -> unless (userIsBot $ messageAuthor m) $
         runCobT session (commandHandler (getServerId m) (getUserId m) (messageContent m) (createReaction m) (replyToMsg m))
@@ -51,10 +50,10 @@ createReaction m = void . restCall . R.CreateReaction (messageChannelId m, messa
 ----- Run Discord Bot -----
 
 main :: IO ()
-main = do 
+main = do
     disctok  <- TIO.readFile "discord-token.secret"
-    host     <- BS.init <$> BS.readFile "cob-host.secret"
-    cobtoken <- BS.init <$> BS.readFile "cob-token.secret"
+    host     <- init <$> readFile "cob-host.secret"
+    cobtoken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobtoken
     err <- runDiscord $ def
              { discordToken = disctok

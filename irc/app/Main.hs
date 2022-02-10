@@ -9,10 +9,10 @@ import Data.ByteString as BS (ByteString, init, readFile)
 import Data.Either (fromRight)
 import Network.IRC.Client as IRC
 import Network.IRC.Conduit.Lens (_Privmsg)
-import RecordM
+import Cob
 import PushupsCommander
 
-eventHandler :: RMSession -> EventHandler ()
+eventHandler :: CobSession -> EventHandler ()
 eventHandler session = EventHandler (matchType _Privmsg) $ \source (_, Right privmsg) -> do
     runCobT session (commandHandler (getServerId source) (getUserId source) privmsg (replyTo source) (replyTo source))
          >>= either (replyTo source . pack) return
@@ -30,7 +30,7 @@ eventHandler session = EventHandler (matchType _Privmsg) $ \source (_, Right pri
               Channel _ nick -> nick
               IRC.Server m -> error ("what to do with server message" <> show m)
 
-run :: RMSession -> ByteString -> Int -> Text -> IO ()
+run :: CobSession -> ByteString -> Int -> Text -> IO ()
 run session host port nick = do
   let conn = tlsConnection (WithDefaultConfig host port)
              -- & logfunc .~ stdoutLogger
