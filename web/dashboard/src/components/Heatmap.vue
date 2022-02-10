@@ -1,6 +1,7 @@
 <script lang="ts">
+import { defineComponent } from 'vue'
 
-export default {
+export default defineComponent({
   props: ["data"],
   data() {
     return {
@@ -13,8 +14,9 @@ export default {
     datap() {
         const startTimestamp = (new Date(new Date().getFullYear()-1, 1, 1)).getTime()/1000
         const mkTime = (weekOfYear : number, dayOfWeek : number) => ((weekOfYear - 1) * 7 + dayOfWeek) * 3600*24 + startTimestamp
-        const datap = Object.fromEntries(this.data.aggregations["2"]["buckets"].flatMap((v : object[]) =>
-          v["3"]["buckets"].map((u : object[]) => [mkTime(v["key"], u["key"]), u["1"]["value"]])))
+        const datap =
+        Object.fromEntries(this.data.aggregations["2"]["buckets"].flatMap((v : {key: number, "3": {buckets: {key: number, "1": {value: number}}[]}}) =>
+          v["3"]["buckets"].map((u : {key: number, "1": {value: number}}) => [mkTime(v["key"], u["key"]), u["1"]["value"]])))
 
       return datap
     }
@@ -76,7 +78,7 @@ export default {
       }
     }
   }
-}
+})
 </script>
 
 <template>

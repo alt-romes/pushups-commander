@@ -1,69 +1,54 @@
-<script setup lang="ts"></script>
+<script lang="ts">
+import { defineComponent } from 'vue'
+
+export default defineComponent({
+  props: {
+    data: {
+      type: Object as () => {
+        name: String,
+        img: String,
+        pushups: number,
+        abs: number,
+        squats: number,
+        kilometers: number,
+        lastSeen: Date,
+      }[]
+    }
+  },
+  methods: {
+    date2String: (date : Date) => date.toISOString().split("T")[0]
+  }
+})
+</script>
 
 <template>
   <div class="columns is-multiline is-vcentered">
-    <div class="column is-3">
-      <div class="box">
-        <div class="media">
-          <div class="media-left">
-            <figure class="image is-48x48">
-              <img src="https://avatars.githubusercontent.com/u/21295306?v=4" alt="Placeholder image">
-            </figure>
+
+    <template v-for="user in data" :key="user.name">
+      <div class="column is-3">
+        <div class="box">
+          <div class="media">
+            <div class="media-left">
+              <figure class="image is-48x48">
+                <img :src="user.img" alt="Profile picture">
+              </figure>
+            </div>
+            <div class="media-content">
+              <p class="title is-4">{{user.name}}</p>
+              <p class="subtitle is-6">@{{user.name}}</p>
+            </div>
           </div>
-          <div class="media-content">
-            <p class="title is-4">Rodrigo</p>
-            <p class="subtitle is-6">@romes</p>
+          <div class="content">
+            {{user.name}} has done <strong>{{user.pushups}} pushups</strong>,
+            <strong>{{user.abs}} abs</strong>, <strong>{{user.squats}}
+              squats</strong>, and <strong>{{user.kilometers}} km</strong>.
+            <br>
+            <small>Last seen: <time :datetime="date2String(user.lastSeen)">{{date2String(user.lastSeen)}}</time></small>
           </div>
-        </div>
-        <div class="content">
-          Rodrigo has done <strong>25 pushups</strong>,
-          <strong>40 abs</strong>, <strong>0 squats</strong>, and <strong>5 km</strong>.
-          <br>
-          <small>Last seen: <time datetime="2016-1-1">1 Jan 2016</time></small>
         </div>
       </div>
-    </div>
-    <div class="column is-3">
-      <div class="box">
-        <div class="media">
-          <div class="media-left">
-            <figure class="image is-48x48">
-              <img src="http://pm1.narvii.com/7724/dd3872253bd4efa308b033b2d10744329b13414ar1-720-720v2_uhq.jpg">
-            </figure>
-          </div>
-          <div class="media-content">
-            <p class="title is-4">Tony</p>
-            <p class="subtitle is-6">@tony</p>
-          </div>
-        </div>
-        <div class="content">
-          Tony has done <strong>125 pushups</strong>,
-          <strong>100 abs</strong>, <strong>50 squats</strong>, and <strong>15 km</strong>.
-          <br>
-          <small>Last seen: <time datetime="2016-1-1">1 Oct 2015</time></small>
-        </div>
-      </div>
-    </div>
-    <div class="column is-3">
-      <div class="box">
-        <div class="media">
-          <div class="media-left">
-            <figure class="image is-48x48">
-              <img src="https://pbs.twimg.com/media/Dy6aLNeXcAUjkQW.jpg">
-            </figure>
-          </div>
-          <div class="media-content">
-            <p class="title is-4">Bárbara</p>
-            <p class="subtitle is-6">@bah</p>
-          </div>
-        </div>
-        <div class="content">
-          Bárbara has done <strong>0 pushups</strong>, <strong>200 abs</strong>, <strong>200 squats</strong>, and <strong>10 km</strong>.
-          <br>
-          <small>Last seen: <time datetime="2016-1-1">1 Oct 2015</time></small>
-        </div>
-      </div>
-    </div>
+    </template>
+
   </div>
 </template>
 

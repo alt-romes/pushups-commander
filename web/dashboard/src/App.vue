@@ -1,13 +1,31 @@
 <script lang="ts">
+import { defineComponent } from 'vue'
+
 import GroupAllActivity from './components/GroupAllActivity.vue'
 import GroupRecentActivity from './components/GroupRecentActivity.vue'
 import Heatmap from './components/Heatmap.vue'
 import LinesGraph from './components/LinesGraph.vue'
 
-export default {
+export default defineComponent({
   components: { GroupAllActivity, GroupRecentActivity, Heatmap, LinesGraph },
   data() {
     return {
+      allActivity: {
+        pushups: 17240,
+        abs: 1345,
+        squats: 4058,
+        kilometers: 455
+      },
+      recentActivity: [
+        {
+          name: "romes",
+          img: "https://avatars.githubusercontent.com/u/21295306?v=4",
+          pushups: 4000,
+          abs: 244,
+          squats: 345,
+          kilometers: 13,
+          lastSeen: new Date()
+        }],
       heatmapData: { // {{{
         "took": 18,
         "timed_out": false,
@@ -1431,7 +1449,7 @@ export default {
       // }}}
     }
   }
-}
+})
 
 </script>
 
@@ -1496,7 +1514,7 @@ export default {
                     A display of your group's strength! The total amount of exercise done in each category by all members summed together, all time.
                   </p>
                   <br>
-                  <GroupAllActivity />
+                  <GroupAllActivity :data="allActivity"/>
                   <br>
 
                   <p class="is-size-6 heading">Group: Recent Activity</p>
@@ -1504,7 +1522,7 @@ export default {
                     An overview of your group's activity in the last month, sorted by recent activity.
                   </p>
                   <br>
-                  <GroupRecentActivity />
+                  <GroupRecentActivity :data="recentActivity" />
                   <br>
 
                   <p class="is-size-6 heading">
