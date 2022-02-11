@@ -47,5 +47,6 @@ executable slack-bot
 
         warp,
         wai,
+        wai-extra,
         servant^>=0.18.3,
         servant-server
