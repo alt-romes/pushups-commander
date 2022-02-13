@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
@@ -8,7 +7,6 @@ import qualified Data.Text.IO as TIO
 import Data.Text as T
 
 import Control.Monad.IO.Class
-import GHC.Generics
 import Control.Monad
 import Data.Aeson
 import Servant
@@ -20,7 +18,7 @@ import Network.Wai.Middleware.RequestLogger
 import PushupsCommander
 
 type SlackEvents =
-    "hi" :> ReqBody '[JSON] UrlVerification :> Post '[PlainText] Text
+    "slack" :> ReqBody '[JSON] UrlVerification :> Post '[PlainText] Text
 
 slackEventsAPI :: Proxy SlackEvents
 slackEventsAPI = Proxy
@@ -42,7 +40,7 @@ main :: IO ()
 main = do
     -- slackToken  <- T.init <$> TIO.readFile "slack-token.secret"
     print "Starting..."
-    run 25565 (logStdoutDev app)
+    run 25564 (logStdoutDev app)
 
 
 
@@ -50,7 +48,7 @@ data UrlVerification = UrlVerification
     { _type      :: Text
     , _token     :: Text
     , _challenge :: Text }
-    deriving (Show, Generic)
+    deriving (Show)
 instance FromJSON UrlVerification where
      parseJSON = withObject "url_verification" $ \v -> do
          typ <- v .: "type"
