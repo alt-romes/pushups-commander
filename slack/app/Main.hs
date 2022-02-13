@@ -61,9 +61,9 @@ createReaction :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text 
 createReaction slackToken session (SlackEventWrapper (Message chan ts _ _) _) text =
     postMessage slackToken session 
     (object
-        [ "channel" .= chan
-        , "name"    .= text
-        , "ts"      .= ts ])
+        [ "channel"   .= chan
+        , "name"      .= text
+        , "timestamp" .= ts ])
      "reactions.add"
 
 replyToMsg :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text -> IO ()
