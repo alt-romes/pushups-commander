@@ -80,8 +80,8 @@ postMessage slackToken session message = do
                       { method = "POST"
                       , host   = "slack.com"
                       , path   = "/api/chat.postMessage" }
-    void $ httpNoBody request
-      
+    response <- httpNoBody request
+    print response
 
 
 data SlackEvent = UrlVerification UrlVerification'
