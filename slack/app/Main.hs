@@ -75,7 +75,7 @@ defRequest session =
 postMessage :: SlackToken -> CobSession -> Message -> IO ()
 postMessage slackToken session message = do
     let request = setRequestBodyJSON message $
-                  addRequestHeader "Authorization" (encodeUtf8 slackToken) $
+                  addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 slackToken) $
                     (defRequest session)
                       { method = "POST"
                       , host   = "slack.com"
