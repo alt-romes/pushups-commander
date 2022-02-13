@@ -8,6 +8,7 @@ module Main where
 
 import qualified Data.Text.IO as TIO
 import Data.Text as T
+import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
 
 import GHC.Generics
@@ -35,6 +36,7 @@ instance FromJSON a => FromJSON (SlackEventWrapper a)
 
 data Message = Message
     { channel :: Text
+    , ts      :: Text
     , user    :: Text
     , text    :: Text
     } deriving (Show)
@@ -44,11 +46,13 @@ instance FromJSON Message where
          channel <- v .: "channel"
          user <- v .: "user"
          text <- v .: "text"
-         return (Message channel user text)
+         ts <- v .: "ts"
+         return (Message channel ts user text)
 instance ToJSON Message where
-    toJSON (Message channel _ text) = object
+    toJSON (Message channel ts _ text) = object
         [ "channel" .= channel
-        , "text"    .= text ]
+        , "text"    .= text
+        , "ts"      .= ts ]
 
 
 type SlackToken = Text
@@ -60,10 +64,10 @@ getUserId :: SlackEventWrapper Message -> Text
 getUserId = user . event
 
 createReaction :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text -> IO ()
-createReaction = replyToMsg
+createReaction slackToken session (SlackEventWrapper (Message chan ts user _) _) text = postMessage slackToken session (Message chan ts user text) "reactions.add"
 
 replyToMsg :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text -> IO ()
-replyToMsg slackToken session (SlackEventWrapper (Message chan user _) _) text = postMessage slackToken session (Message chan user text)
+replyToMsg slackToken session (SlackEventWrapper (Message chan ts user _) _) text = postMessage slackToken session (Message chan ts user text) "chat.postMessage"
 
 defRequest :: CobSession -> Request
 defRequest session =
@@ -72,14 +76,14 @@ defRequest session =
                        , port      = 443
                        }
 
-postMessage :: SlackToken -> CobSession -> Message -> IO ()
-postMessage slackToken session message = do
+postMessage :: SlackToken -> CobSession -> Message -> ByteString -> IO ()
+postMessage slackToken session message method = do
     let request = setRequestBodyJSON message $
                   addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 slackToken) $
                     (defRequest session)
                       { method = "POST"
                       , host   = "slack.com"
-                      , path   = "/api/chat.postMessage" }
+                      , path   = "/api/" <> method }
     response <- httpNoBody request
     print response
 
