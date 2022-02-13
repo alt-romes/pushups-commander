@@ -48,12 +48,6 @@ instance FromJSON Message where
          text <- v .: "text"
          ts <- v .: "ts"
          return (Message channel ts user text)
-instance ToJSON Message where
-    toJSON (Message channel ts _ text) = object
-        [ "channel" .= channel
-        , "text"    .= text
-        , "ts"      .= ts ]
-
 
 type SlackToken = Text
 
@@ -64,10 +58,21 @@ getUserId :: SlackEventWrapper Message -> Text
 getUserId = user . event
 
 createReaction :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text -> IO ()
-createReaction slackToken session (SlackEventWrapper (Message chan ts user _) _) text = postMessage slackToken session (Message chan ts user text) "reactions.add"
+createReaction slackToken session (SlackEventWrapper (Message chan ts _ _) _) text =
+    postMessage slackToken session 
+    (object
+        [ "channel" .= chan
+        , "name"    .= text
+        , "ts"      .= ts ])
+     "reactions.add"
 
 replyToMsg :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text -> IO ()
-replyToMsg slackToken session (SlackEventWrapper (Message chan ts user _) _) text = postMessage slackToken session (Message chan ts user text) "chat.postMessage"
+replyToMsg slackToken session (SlackEventWrapper (Message chan _ _ _) _) text =
+    postMessage slackToken session
+    (object
+        [ "channel" .= chan
+        , "text"    .= text ])
+    "chat.postMessage"
 
 defRequest :: CobSession -> Request
 defRequest session =
@@ -76,7 +81,7 @@ defRequest session =
                        , port      = 443
                        }
 
-postMessage :: SlackToken -> CobSession -> Message -> ByteString -> IO ()
+postMessage :: SlackToken -> CobSession -> Value -> ByteString -> IO ()
 postMessage slackToken session message method = do
     let request = setRequestBodyJSON message $
                   addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 slackToken) $
