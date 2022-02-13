@@ -1,3 +1,6 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
@@ -6,8 +9,10 @@ module Main where
 import qualified Data.Text.IO as TIO
 import Data.Text as T
 
+import GHC.Generics
 import Control.Monad.IO.Class
 import Control.Monad
+import Control.Applicative
 import Data.Aeson
 import Servant
 import Servant.API
@@ -17,24 +22,63 @@ import Network.Wai.Middleware.RequestLogger
 
 import PushupsCommander
 
-type SlackEvents =
-    "slack" :> ReqBody '[JSON] UrlVerification :> Post '[PlainText] Text
+data SlackEventWrapper a = SlackEventWrapper
+    { event   :: a
+    , team_id :: Text
+    } deriving (Show, Generic)
+instance FromJSON a => FromJSON (SlackEventWrapper a)
+
+data Message = Message
+    { channel :: Text
+    , user    :: Text
+    , text    :: Text
+    } deriving (Show)
+instance FromJSON Message where
+     parseJSON = withObject "message" $ \v -> do
+         "message" :: Text <- v .: "type"
+         channel <- v .: "channel"
+         user <- v .: "user"
+         text <- v .: "text"
+         return (Message channel user text)
+
+data SlackEvent = UrlVerification UrlVerification'
+                | WrappedEvent (SlackEventWrapper Message)
+
+instance FromJSON SlackEvent where
+    parseJSON = withObject "slackEvent" $ \v -> do
+        ty :: Text <- v .: "type"
+        case ty of
+          "event_callback"   -> WrappedEvent <$> parseJSON (Object v)
+          "url_verification" -> UrlVerification <$> parseJSON (Object v)
+          _ -> fail $ unpack $ "slack event type (" <> ty <> ") not supported"
+
+
+type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
 slackEventsAPI :: Proxy SlackEvents
 slackEventsAPI = Proxy
 
 handler :: Server SlackEvents
-handler = urlVerification
+handler = event
+            
     where
+    event :: SlackEvent -> Handler Text
+    event = \case
+        UrlVerification x -> urlVerification x
+        WrappedEvent m@(SlackEventWrapper Message{} _) -> message m
 
-    urlVerification :: UrlVerification -> Handler Text
+    urlVerification :: UrlVerification' -> Handler Text
     urlVerification v = do
         liftIO $ print v
-        when (_type v /= "url_verification") (throwError err400)
         return $ _challenge v
+
+    message :: SlackEventWrapper Message -> Handler Text
+    message = (<$>) (const "") . liftIO . print
+
 
 app :: Application
 app = serve slackEventsAPI handler
+
 
 main :: IO ()
 main = do
@@ -43,15 +87,12 @@ main = do
     run 25564 (logStdoutDev app)
 
 
-
-data UrlVerification = UrlVerification
-    { _type      :: Text
-    , _token     :: Text
+data UrlVerification' = UrlVerification'
+    { _token     :: Text
     , _challenge :: Text }
     deriving (Show)
-instance FromJSON UrlVerification where
+instance FromJSON UrlVerification' where
      parseJSON = withObject "url_verification" $ \v -> do
-         typ <- v .: "type"
          tok <- v .: "token"
          cha <- v .: "challenge"
-         return (UrlVerification typ tok cha)
+         return (UrlVerification' tok cha)
