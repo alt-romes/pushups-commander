@@ -25,7 +25,8 @@ executable pushups-chatbot
     main-is:        Main.hs
     other-modules:  PushupsCommander,
                     PushupsRecordM,
-                    ChatBot
+                    ChatBot,
+                    SlackBot
 
     hs-source-dirs:   app
     default-language: Haskell2010

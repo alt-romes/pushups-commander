@@ -21,6 +21,14 @@ runChatBots = mapConcurrently_ (\(cb, port) -> run port (logStdoutDev $ mkApplic
 mkApplication :: forall a. ChatBot a -> Application
 mkApplication (ChatBot h) = serve (Proxy @a) h
 
+-- | To create a chat bot apply the type of the API and pass the API Server handler
+--
+-- @
+-- slackHandler :: Token -> Server SlackEvents
+-- slackHandler = ...
+--
+-- ... ChatBot @SlackEvents (slackHandler tok)
+-- @
 data ChatBot a where
     ChatBot :: HasServer a '[] => Server a -> ChatBot a
 
@@ -30,7 +38,6 @@ class ChatBotMessage a where
     getText     :: a -> Text
     reactTo     :: a -> Text -> Chat a ()
     replyTo     :: a -> Text -> Chat a ()
-    handleMsg   :: a -> Chat a ()
 
 type Chat a = ReaderT (ReplyMessageState a) IO
 type family ReplyMessageState a
