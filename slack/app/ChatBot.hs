@@ -29,5 +29,6 @@ class ChatBotMessage a where
     getUserId      :: a -> Text
     createReaction :: a -> Text -> ReaderT (ReplyMessageState a) IO ()
     replyToMsg     :: a -> Text -> ReaderT (ReplyMessageState a) IO ()
+    handleMsg      :: (ReplyMessageState a) -> a -> IO ()
 
 type family ReplyMessageState a

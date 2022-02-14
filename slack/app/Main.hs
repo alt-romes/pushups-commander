@@ -114,25 +114,25 @@ instance ChatBotMessage (SlackEventWrapper Message) where
                 [ "channel" .= chan
                 , "text"    .= text ])
             "chat.postMessage"
+    handleMsg (slackToken, session) message =
+        runCobT session (commandHandler (slackToken, session) message)
+          >>= ((flip runReaderT (slackToken, session) <$> replyToMsg message) . pack) return 
 
-defRequest :: CobSession -> Request
-defRequest session =
-    setRequestManager (tlsmanager session) $
-    Net.defaultRequest { secure    = True
-                       , port      = 443
-                       }
 
 postMessage :: SlackToken -> CobSession -> Value -> ByteString -> IO ()
 postMessage slackToken session message method = do
     let request = setRequestBodyJSON message $
                   addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 slackToken) $
-                    (defRequest session)
+                    defRequest
                       { method = "POST"
                       , host   = "slack.com"
                       , path   = "/api/" <> method }
     response <- httpNoBody request
     print response
-    
+    where defRequest =
+            setRequestManager (tlsmanager session) $
+            Net.defaultRequest { secure    = True
+                               , port      = 443 }
 
 main :: IO ()
 main = do
