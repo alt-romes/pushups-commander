@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
 module PushupsCommander where
 
+import Control.Monad.Reader
 import Data.Maybe (isNothing, listToMaybe)
 import Data.List (find)
 import Control.Lens ((^?), (^.), (.~), (?~))
@@ -18,7 +19,7 @@ import Control.Monad.Trans.Except
 import Cob
 import Cob.RecordM
 import PushupsRecordM
-
+import ChatBot
 
 ----- Main -----
 
@@ -36,18 +37,18 @@ data ImperativeCommand = ActivateCommander Text
 data Target = Today | All | Server deriving (Show, Eq)
 
 
-commandHandler :: MonadIO m => ServerIdentifier -> ServerUsername -> Text -> (Text -> m ()) -> (Text -> m ()) -> CobT m ()
-commandHandler serverId masterUserId messageText createReaction replyWith = do
-    command <- CobT $ parseMsg messageText
+commandHandler :: ChatBotMessage a => a -> CobT (Chat a) ()
+commandHandler msg = do
+    command <- CobT $ parseMsg (getText msg)
     log command
     case command of
         AddExercise amount exercise -> do
             addExercise amount exercise
-            createReaction "muscle" & lift
+            replyTo msg "muscle" & lift
 
         RmExercise amount exercise  -> do
             addExercise (-amount) exercise
-            createReaction "thumbsup" & lift
+            reactTo msg "thumbsup" & lift
 
         Imperative imp -> case imp of 
             ActivateCommander code -> do
@@ -55,16 +56,18 @@ commandHandler serverId masterUserId messageText createReaction replyWith = do
                 serversRecords         <- rmDefinitionSearch ("activation_code:" <> code)
                 (id, activationRecord) <- find hasActivationCode serversRecords /// throwError "Invalid activation code!" 
                 rmUpdateInstances id (serverIdentifier ?~ serverId)
-                replyWith "Successfully activated!" & lift
+                replyTo msg "Successfully activated!" & lift
 
             SetMasterUsername newName -> do
                 [serverUser] <- rmDefinitionSearch_ ("server_username:" <> masterUserId <> " server_reference:" <> serverId) 
                 rmUpdateInstances (serverUser^.userId) (masterUsername .~ newName)
-                createReaction "thumbsup" & lift
+                reactTo msg "thumbsup" & lift
 
         Ok -> return ()
 
     where
+        serverId = getServerId msg
+        masterUserId = getUserId msg
         addExercise :: MonadIO m => Amount -> Exercise -> CobT m (Ref ExercisesRecord)
         addExercise amount exercise = do
             (serverUserId, _) <- rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> masterUserId) createServerUser
