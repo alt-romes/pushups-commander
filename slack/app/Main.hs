@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -19,14 +20,19 @@ import Data.Aeson
 import Servant
 import Servant.API
 import Servant.API.ContentTypes
-import Network.Wai.Handler.Warp
-import Network.Wai.Middleware.RequestLogger
 
 import Network.HTTP.Conduit as Net (Manager, Cookie(..), Request(..), defaultRequest, newManager, tlsManagerSettings)
 import Network.HTTP.Simple hiding (Proxy)
 
 import PushupsCommander
 import Cob
+import ChatBot
+
+data UrlVerification' = UrlVerification'
+    { token     :: Text
+    , challenge :: Text }
+    deriving (Show, Generic)
+instance FromJSON UrlVerification'
 
 data SlackEventWrapper a = SlackEventWrapper
     { event   :: a
@@ -92,7 +98,6 @@ postMessage slackToken session message method = do
     response <- httpNoBody request
     print response
 
-
 data SlackEvent = UrlVerification UrlVerification'
                 | WrappedEvent (SlackEventWrapper Message)
 
@@ -104,14 +109,14 @@ instance FromJSON SlackEvent where
           "url_verification" -> UrlVerification <$> parseJSON (Object v)
           _ -> fail $ unpack $ "slack event type (" <> ty <> ") not supported"
 
+newtype SlackBot = SlackBot (Server SlackEvents)
+instance ChatBot SlackBot where
+    mkApplication (SlackBot handler) = serve (Proxy @SlackEvents) handler
 
 type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
-slackEventsAPI :: Proxy SlackEvents
-slackEventsAPI = Proxy
-
-handler :: SlackToken -> CobSession -> Server SlackEvents
-handler slackToken session = slackEvent
+slackHandler :: SlackToken -> CobSession -> Server SlackEvents
+slackHandler slackToken session = slackEvent
             
     where
     slackEvent :: SlackEvent -> Handler Text
@@ -122,7 +127,7 @@ handler slackToken session = slackEvent
     urlVerification :: UrlVerification' -> Handler Text
     urlVerification v = do
         liftIO $ print v
-        return $ _challenge v
+        return $ challenge v
 
     message :: SlackEventWrapper Message -> Handler Text
     message m = do
@@ -132,10 +137,6 @@ handler slackToken session = slackEvent
         return ""
 
 
-app :: SlackToken -> CobSession -> Application
-app slackToken session = serve slackEventsAPI (handler slackToken session)
-
-
 main :: IO ()
 main = do
     slackToken  <- T.init <$> TIO.readFile "slack-token.secret"
@@ -143,15 +144,5 @@ main = do
     cobtoken <- Prelude.init <$> readFile "cob-token.secret"
     session  <- makeSession host cobtoken
     print "Starting..."
-    run 25564 (logStdoutDev (app slackToken session))
+    runChatBots [(SlackBot (slackHandler slackToken session), 25564)]
 
-
-data UrlVerification' = UrlVerification'
-    { _token     :: Text
-    , _challenge :: Text }
-    deriving (Show)
-instance FromJSON UrlVerification' where
-     parseJSON = withObject "url_verification" $ \v -> do
-         tok <- v .: "token"
-         cha <- v .: "challenge"
-         return (UrlVerification' tok cha)
