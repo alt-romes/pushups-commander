@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -12,6 +14,7 @@ import Data.Text as T
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
 
+import Control.Monad.Reader
 import GHC.Generics
 import Control.Monad.IO.Class
 import Control.Monad
@@ -57,47 +60,6 @@ instance FromJSON Message where
 
 type SlackToken = Text
 
-getServerId :: SlackEventWrapper Message -> Text
-getServerId = team_id
-
-getUserId :: SlackEventWrapper Message -> Text
-getUserId = user . event
-
-createReaction :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text -> IO ()
-createReaction slackToken session (SlackEventWrapper (Message chan ts _ _) _) text =
-    postMessage slackToken session 
-    (object
-        [ "channel"   .= chan
-        , "name"      .= text
-        , "timestamp" .= ts ])
-     "reactions.add"
-
-replyToMsg :: SlackToken -> CobSession -> SlackEventWrapper Message -> Text -> IO ()
-replyToMsg slackToken session (SlackEventWrapper (Message chan _ _ _) _) text =
-    postMessage slackToken session
-    (object
-        [ "channel" .= chan
-        , "text"    .= text ])
-    "chat.postMessage"
-
-defRequest :: CobSession -> Request
-defRequest session =
-    setRequestManager (tlsmanager session) $
-    Net.defaultRequest { secure    = True
-                       , port      = 443
-                       }
-
-postMessage :: SlackToken -> CobSession -> Value -> ByteString -> IO ()
-postMessage slackToken session message method = do
-    let request = setRequestBodyJSON message $
-                  addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 slackToken) $
-                    (defRequest session)
-                      { method = "POST"
-                      , host   = "slack.com"
-                      , path   = "/api/" <> method }
-    response <- httpNoBody request
-    print response
-
 data SlackEvent = UrlVerification UrlVerification'
                 | WrappedEvent (SlackEventWrapper Message)
 
@@ -108,10 +70,6 @@ instance FromJSON SlackEvent where
           "event_callback"   -> WrappedEvent <$> parseJSON (Object v)
           "url_verification" -> UrlVerification <$> parseJSON (Object v)
           _ -> fail $ unpack $ "slack event type (" <> ty <> ") not supported"
-
-newtype SlackBot = SlackBot (Server SlackEvents)
-instance ChatBot SlackBot where
-    mkApplication (SlackBot handler) = serve (Proxy @SlackEvents) handler
 
 type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
@@ -132,10 +90,49 @@ slackHandler slackToken session = slackEvent
     message :: SlackEventWrapper Message -> Handler Text
     message m = do
         liftIO $
-            runCobT session (commandHandler (getServerId m) (getUserId m) (text $ event m) (createReaction slackToken session m) (replyToMsg slackToken session m))
-             >>= either (replyToMsg slackToken session m . pack) return
+            runCobT session (commandHandler (getServerId m) (getUserId m) (text $ event m) (flip runReaderT (slackToken, session) <$> createReaction m) (flip runReaderT (slackToken, session) <$> replyToMsg m))
+             >>= either ((flip runReaderT (slackToken, session) <$> replyToMsg m) . pack) return
         return ""
 
+type instance ReplyMessageState (SlackEventWrapper Message) = (SlackToken, CobSession)
+
+instance ChatBotMessage (SlackEventWrapper Message) where
+    getServerId = team_id
+    getUserId = user . event
+    createReaction (SlackEventWrapper (Message chan ts _ _) _) text = do
+        (slackToken, session) <- ask
+        lift $ postMessage slackToken session 
+            (object
+                [ "channel"   .= chan
+                , "name"      .= text
+                , "timestamp" .= ts ])
+             "reactions.add"
+    replyToMsg (SlackEventWrapper (Message chan _ _ _) _) text = do
+        (slackToken, session) <- ask
+        lift $ postMessage slackToken session
+            (object
+                [ "channel" .= chan
+                , "text"    .= text ])
+            "chat.postMessage"
+
+defRequest :: CobSession -> Request
+defRequest session =
+    setRequestManager (tlsmanager session) $
+    Net.defaultRequest { secure    = True
+                       , port      = 443
+                       }
+
+postMessage :: SlackToken -> CobSession -> Value -> ByteString -> IO ()
+postMessage slackToken session message method = do
+    let request = setRequestBodyJSON message $
+                  addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 slackToken) $
+                    (defRequest session)
+                      { method = "POST"
+                      , host   = "slack.com"
+                      , path   = "/api/" <> method }
+    response <- httpNoBody request
+    print response
+    
 
 main :: IO ()
 main = do
@@ -144,5 +141,5 @@ main = do
     cobtoken <- Prelude.init <$> readFile "cob-token.secret"
     session  <- makeSession host cobtoken
     print "Starting..."
-    runChatBots [(SlackBot (slackHandler slackToken session), 25564)]
+    runChatBots [(ChatBot @SlackEvents (slackHandler slackToken session), 25564)]
 
