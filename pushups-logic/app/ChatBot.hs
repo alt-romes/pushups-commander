@@ -1,10 +1,9 @@
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GADTs #-}
 module ChatBot where
 
@@ -23,24 +22,13 @@ import Control.Monad.Reader (ReaderT, runReaderT, MonadTrans)
 -- slackHandler :: Server SlackEvents
 -- slackHandler = ...
 --
--- main = runChatBots [(ChatBot @SlackEvents slackHandler, 25565)]
+-- main = runChatBots [(slackPushupBot (slackToken, session), 25564)]
 -- @
-runChatBots :: [(ChatBot a, Int)] -> IO ()
+runChatBots :: HasServer a '[] => [(a #=# Bot m i o, Int)] -> IO ()
 runChatBots = mapConcurrently_ (\(cb, port) -> run port (logStdoutDev $ mkApplication cb))
 
-mkApplication :: forall a. ChatBot a -> Application
-mkApplication (ChatBot h) = serve (Proxy @a) h
-
--- | To create a chat bot apply the type of the API and pass the API Server handler
---
--- @
--- slackHandler :: Token -> Server SlackEvents
--- slackHandler = ...
---
--- ... ChatBot @SlackEvents (slackHandler tok)
--- @
-data ChatBot a where
-    ChatBot :: HasServer a '[] => Server a -> ChatBot a
+mkApplication :: HasServer a '[] => (a #=# Bot m i o) -> Application
+mkApplication (BotServer proxy server runBot) = serve proxy (server runBot)
 
 -- | A bot transforms an input into a contextual output
 newtype Bot m i o = Bot { runBot :: i -> m o }
@@ -63,4 +51,17 @@ class ChatBotMessage a => Chattable m a where
     replyTo :: a -> Text -> m ()
 
 -- | A 'ChatBot' is a Bot that is 'Chattable', i.e., a bot that can react and reply to 'ChatBotMessage's, and whose input type is any 'ChatBotMessage'
-type ChatBot' m i o = Chattable m i => Bot m i o
+-- type ChatBot' m i o = (Chattable m i, ChatBotMessage i) => Bot m i o
+
+-- | To create a chat bot apply the type of the API and pass the API Server handler
+--
+-- @
+-- slackHandler :: Token -> Server SlackEvents
+-- slackHandler = ...
+--
+-- ... ChatBot @SlackEvents (slackHandler tok)
+-- @
+data a #=# b where
+    BotServer :: forall a b m i o. (b ~ Bot m i o, HasServer a '[]) => Proxy a -> (Bot m i o -> Server a) -> (Bot m i o) -> (a #=# Bot m i o)
+
+type ReaderBot r m i o = Bot (ReaderT r m) i o

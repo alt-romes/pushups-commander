@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -11,6 +12,7 @@
 module SlackBot where
 
 import qualified Data.Text.IO as TIO
+import Data.Function ((&))
 import Data.Text as T
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
@@ -20,6 +22,7 @@ import GHC.Generics
 import Control.Monad.IO.Class
 import Control.Monad
 import Control.Applicative
+import Data.Functor (($>))
 import Data.Aeson
 import Servant
 import Servant.API
@@ -54,7 +57,7 @@ instance Chattable (PushupsBotM SlackToken) (SlackEventWrapper Message) where
                 , "text"    .= text ])
             "chat.postMessage"
 
-postMessage :: Value -> ByteString -> ReaderT (SlackToken, CobSession) IO ()
+postMessage :: Value -> ByteString -> PushupsBotM SlackToken ()
 postMessage message method = do
     (slackToken, session) <- ask
     let request = setRequestBodyJSON message $
@@ -73,17 +76,13 @@ postMessage message method = do
 
 type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
-slackHandler :: SlackToken -> CobSession -> Server SlackEvents
-slackHandler slackToken session = slackEvent where
-    slackEvent :: SlackEvent -> Handler Text
-    slackEvent = \case
-        UrlVerification x -> liftIO (print x) >> return (challenge x)
-        WrappedEvent m@(SlackEventWrapper Message{} _) -> message m
+slackHandler :: (SlackToken, CobSession) -> Bot (PushupsBotM SlackToken) (SlackEventWrapper Message) o -> Server SlackEvents
+slackHandler (slackToken, session) bot = \case
+    UrlVerification x -> liftIO (print x) $> challenge x
+    WrappedEvent m@(SlackEventWrapper Message{} _) -> liftIO (
+        runReaderT (runBot bot m) (slackToken, session)      ) $> ""
 
-    message :: SlackEventWrapper Message -> Handler Text
-    message m = do
-        liftIO (runReaderT (runBot pushupsBot m) (slackToken, session))
-        return ""
+slackBot = BotServer (Proxy @SlackEvents) . slackHandler
 
 -------- API Types ----------
 
@@ -101,7 +100,6 @@ data Message = Message { channel :: Text
 
 data SlackEvent = UrlVerification UrlVerification'
                 | WrappedEvent (SlackEventWrapper Message)
-
 
 instance FromJSON UrlVerification'
 

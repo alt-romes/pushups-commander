@@ -24,6 +24,17 @@ import Cob.RecordM
 import PushupsRecordM
 import ChatBot
 
+----- ChatBot -----
+
+type PushupsBotM r = ReaderT (r, CobSession) IO
+type PushupsBot r i = ReaderBot (r, CobSession) IO i ()
+
+pushupsBot :: Chattable (PushupsBotM s) a => PushupsBot s a
+pushupsBot = Bot $ \m -> do
+    session <- asks snd
+    reply <- runCobT session (commandHandler m)
+    either (replyTo m . pack) return reply
+
 ----- Main -----
 
 type Amount = Int
@@ -39,16 +50,7 @@ data ImperativeCommand = ActivateCommander Text
                         deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
-type PushupsBotM s = ReaderT (s, CobSession) IO
-type PushupsBot s i o = Bot (PushupsBotM s) i o
-
-pushupsBot :: ChatBot' (PushupsBotM s) a ()
-pushupsBot = Bot $ \m -> do
-    session <- asks snd
-    reply <- runCobT session (commandHandler m)
-    either (replyTo m . pack) return reply
-
-commandHandler :: Chattable (PushupsBotM s) a => a -> CobT (PushupsBotM s) ()
+commandHandler :: (Chattable m a, MonadIO m) => a -> CobT m ()
 commandHandler msg = do
     command <- CobT $ parseMsg (getText msg)
     log command
