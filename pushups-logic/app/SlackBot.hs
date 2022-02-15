@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -36,6 +38,8 @@ instance ChatBotMessage (SlackEventWrapper Message) where
     getServerId = team_id
     getUserId = user . event
     getText = text . event
+
+instance Chattable (PushupsBotM SlackToken) (SlackEventWrapper Message) where
     reactTo (SlackEventWrapper (Message chan ts _ _) _) text = do
         (slackToken, session) <- ask
         postMessage (object
@@ -50,9 +54,7 @@ instance ChatBotMessage (SlackEventWrapper Message) where
                 , "text"    .= text ])
             "chat.postMessage"
 
-type instance ReplyMessageState (SlackEventWrapper Message) = (SlackToken, CobSession)
-
-postMessage :: Value -> ByteString -> Chat (SlackEventWrapper Message) ()
+postMessage :: Value -> ByteString -> ReaderT (SlackToken, CobSession) IO ()
 postMessage message method = do
     (slackToken, session) <- ask
     let request = setRequestBodyJSON message $
@@ -64,8 +66,8 @@ postMessage message method = do
                         , method = "POST"
                         , host   = "slack.com"
                         , path   = "/api/" <> method }
-    response <- lift (httpNoBody request)
-    lift (print response)
+    response <- lift $ httpNoBody request
+    lift $ print response
 
 -------- Bot API ------------
 
@@ -79,7 +81,9 @@ slackHandler slackToken session = slackEvent where
         WrappedEvent m@(SlackEventWrapper Message{} _) -> message m
 
     message :: SlackEventWrapper Message -> Handler Text
-    message m = liftIO (runChat (slackToken, session) (runCobT session (commandHandler m) >>= either (replyTo m . pack) return)) >> return ""
+    message m = do
+        liftIO (runReaderT (runBot pushupsBot m) (slackToken, session))
+        return ""
 
 -------- API Types ----------
 
@@ -119,3 +123,5 @@ instance FromJSON SlackEvent where
           "event_callback"   -> WrappedEvent <$> parseJSON (Object v)
           "url_verification" -> UrlVerification <$> parseJSON (Object v)
           _ -> fail $ unpack $ "slack event type (" <> ty <> ") not supported"
+
+

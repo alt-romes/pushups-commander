@@ -1,4 +1,7 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 module PushupsCommander where
 
 import Control.Monad.Reader
@@ -36,8 +39,16 @@ data ImperativeCommand = ActivateCommander Text
                         deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
+type PushupsBotM s = ReaderT (s, CobSession) IO
+type PushupsBot s i o = Bot (PushupsBotM s) i o
 
-commandHandler :: ChatBotMessage a => a -> CobT (Chat a) ()
+pushupsBot :: ChatBot' (PushupsBotM s) a ()
+pushupsBot = Bot $ \m -> do
+    session <- asks snd
+    reply <- runCobT session (commandHandler m)
+    either (replyTo m . pack) return reply
+
+commandHandler :: Chattable (PushupsBotM s) a => a -> CobT (PushupsBotM s) ()
 commandHandler msg = do
     command <- CobT $ parseMsg (getText msg)
     log command

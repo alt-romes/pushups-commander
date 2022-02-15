@@ -26,7 +26,8 @@ executable pushups-chatbot
     other-modules:  PushupsCommander,
                     PushupsRecordM,
                     ChatBot,
-                    SlackBot
+                    SlackBot,
+                    MessengerBot
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -54,4 +55,5 @@ executable pushups-chatbot
         servant^>=0.18.3,
         servant-server,
 
-        async ^>=2.2.4
+        async ^>=2.2.4,
+        profunctors
