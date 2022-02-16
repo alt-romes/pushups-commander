@@ -42,24 +42,21 @@ instance ChatBotMessage (SlackEventWrapper Message) where
     getUserId = user . event
     getText = text . event
 
-instance Chattable (PushupsBotM SlackToken) (SlackEventWrapper Message) where
-    reactTo (SlackEventWrapper (Message chan ts _ _) _) text = do
-        (slackToken, session) <- ask
-        postMessage (object
+instance MonadIO m => Chattable m (SlackToken, CobSession) (SlackEventWrapper Message) where
+    reactTo reader (SlackEventWrapper (Message chan ts _ _) _) text = liftIO $
+        postMessage reader (object
                 [ "channel"   .= chan
                 , "name"      .= text
                 , "timestamp" .= ts ])
              "reactions.add"
-    replyTo (SlackEventWrapper (Message chan _ _ _) _) text = do
-        (slackToken, session) <- ask
-        postMessage (object
+    replyTo reader (SlackEventWrapper (Message chan _ _ _) _) text = liftIO $
+        postMessage reader (object
                 [ "channel" .= chan
                 , "text"    .= text ])
             "chat.postMessage"
 
-postMessage :: Value -> ByteString -> PushupsBotM SlackToken ()
-postMessage message method = do
-    (slackToken, session) <- ask
+postMessage :: (SlackToken, CobSession) -> Value -> ByteString -> IO ()
+postMessage (slackToken, session) message method = do
     let request = setRequestBodyJSON message $
                   addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 slackToken) $
                   setRequestManager (tlsmanager session) $
@@ -69,20 +66,23 @@ postMessage message method = do
                         , method = "POST"
                         , host   = "slack.com"
                         , path   = "/api/" <> method }
-    response <- lift $ httpNoBody request
-    lift $ print response
+    response <- httpNoBody request
+    print response
 
 -------- Bot API ------------
 
 type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
-slackHandler :: (SlackToken, CobSession) -> Bot (PushupsBotM SlackToken) (SlackEventWrapper Message) o -> Server SlackEvents
-slackHandler (slackToken, session) bot = \case
-    UrlVerification x -> liftIO (print x) $> challenge x
-    WrappedEvent m@(SlackEventWrapper Message{} _) -> liftIO (
-        runReaderT (runBot bot m) (slackToken, session)      ) $> ""
+slackHandler :: Bot Handler (SlackToken, CobSession) (SlackEventWrapper Message) () -> (SlackToken, CobSession) -> Server SlackEvents
+slackHandler bot (slackToken, session) = \case
+    UrlVerification x -> pure (challenge x)
+    WrappedEvent m@(SlackEventWrapper Message{} _) ->
+        runBot bot m (slackToken, session) $> ""
 
-slackBot = BotServer (Proxy @SlackEvents) . slackHandler
+type SlackServer = BotServer SlackEvents (SlackToken, CobSession) (SlackEventWrapper Message) ()
+
+slackBot :: BotServerConstructor SlackServer
+slackBot = BotServer (Proxy @SlackEvents) slackHandler
 
 -------- API Types ----------
 
@@ -121,5 +121,4 @@ instance FromJSON SlackEvent where
           "event_callback"   -> WrappedEvent <$> parseJSON (Object v)
           "url_verification" -> UrlVerification <$> parseJSON (Object v)
           _ -> fail $ unpack $ "slack event type (" <> ty <> ") not supported"
-
 

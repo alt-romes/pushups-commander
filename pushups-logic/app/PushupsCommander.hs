@@ -26,14 +26,12 @@ import ChatBot
 
 ----- ChatBot -----
 
-type PushupsBotM r = ReaderT (r, CobSession) IO
-type PushupsBot r i = ReaderBot (r, CobSession) IO i ()
+type PushupsBot s i = Bot IO (s, CobSession) i ()
 
-pushupsBot :: Chattable (PushupsBotM s) a => PushupsBot s a
-pushupsBot = Bot $ \m -> do
-    session <- asks snd
-    reply <- runCobT session (commandHandler m)
-    either (replyTo m . pack) return reply
+pushupsBot :: (MonadIO m, Chattable m (s, CobSession) i) => Bot m (s, CobSession) i ()
+pushupsBot = Bot $ \m (reader, session) -> do
+    reply <- runCobT session (commandHandler (reader, session) m)
+    either (replyTo (reader, session) m . pack) return reply
 
 ----- Main -----
 
@@ -50,18 +48,18 @@ data ImperativeCommand = ActivateCommander Text
                         deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
-commandHandler :: (Chattable m a, MonadIO m) => a -> CobT m ()
-commandHandler msg = do
+commandHandler :: (MonadIO m, Chattable m s a) => s -> a -> CobT m ()
+commandHandler tok msg = do
     command <- CobT $ parseMsg (getText msg)
     log command
     case command of
         AddExercise amount exercise -> do
             addExercise amount exercise
-            replyTo msg "muscle" & lift
+            replyTo tok msg "muscle" & lift
 
         RmExercise amount exercise  -> do
             addExercise (-amount) exercise
-            reactTo msg "thumbsup" & lift
+            reactTo tok msg "thumbsup" & lift
 
         Imperative imp -> case imp of 
             ActivateCommander code -> do
@@ -69,12 +67,12 @@ commandHandler msg = do
                 serversRecords         <- rmDefinitionSearch ("activation_code:" <> code)
                 (id, activationRecord) <- find hasActivationCode serversRecords /// throwError "Invalid activation code!" 
                 rmUpdateInstances id (serverIdentifier ?~ serverId)
-                replyTo msg "Successfully activated!" & lift
+                replyTo tok msg "Successfully activated!" & lift
 
             SetMasterUsername newName -> do
                 [serverUser] <- rmDefinitionSearch_ ("server_username:" <> masterUserId <> " server_reference:" <> serverId) 
                 rmUpdateInstances (serverUser^.userId) (masterUsername .~ newName)
-                reactTo msg "thumbsup" & lift
+                reactTo tok msg "thumbsup" & lift
 
         Ok -> return ()
 
