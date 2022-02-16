@@ -16,6 +16,10 @@ import PushupsCommander
 runCobBot :: MonadIO m => CobSession -> ChatBot (CobT m) s i -> ChatBot m s i
 runCobBot session = fmap (either (\s -> [ReplyWith $ T.pack s]) id) . transformBot (runCobT session)
 
+echoBot :: (Applicative m, ChatBotMessage i) => ChatBot m () i
+echoBot = Bot $ \m () -> pure [ReplyWith $ getContent m]
+
+
 main :: IO ()
 main = do
     slackToken  <- T.init <$> TIO.readFile "slack-token.secret"
@@ -25,6 +29,7 @@ main = do
     putStrLn "Starting..."
     runBotServers
         25564
-        (runCobBot session pushupsBot)
+        -- (runCobBot session pushupsBot)
+        echoBot
         [ slackBot ]
         (map (, session) [ slackToken ])
