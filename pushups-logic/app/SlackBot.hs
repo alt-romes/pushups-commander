@@ -13,6 +13,7 @@ module SlackBot where
 
 import qualified Data.Text.IO as TIO
 import Data.Function ((&))
+import Data.Maybe (isJust)
 import Data.Functor.Identity (Identity(..))
 import Data.Text as T
 import Data.ByteString (ByteString(..))
@@ -42,15 +43,16 @@ instance ChatBotMessage (SlackEventWrapper Message) where
     getServerId = team_id
     getUserId   = user . event
     getContent  = text . event
+    isFromBot   = isJust . botId . event
 
 instance MonadIO m => Chattable m (SlackToken, CobSession) (SlackEventWrapper Message) where
-    reactTo reader (SlackEventWrapper (Message chan ts _ _) _) text = liftIO $
+    reactTo reader (SlackEventWrapper (Message chan ts _ _ _) _) text = liftIO $
         postMessage reader (object
                 [ "channel"   .= chan
                 , "name"      .= text
                 , "timestamp" .= ts ])
              "reactions.add"
-    replyTo reader (SlackEventWrapper (Message chan _ _ _) _) text = liftIO $
+    replyTo reader (SlackEventWrapper (Message chan _ _ _ _) _) text = liftIO $
         postMessage reader (object
                 [ "channel" .= chan
                 , "text"    .= text ])
@@ -95,6 +97,7 @@ data Message = Message { channel :: Text
                        , ts      :: Text
                        , user    :: Text
                        , text    :: Text
+                       , botId   :: Maybe Text
                        } deriving (Show)
 
 data SlackEvent = UrlVerification UrlVerification'
@@ -107,11 +110,12 @@ instance FromJSON a => FromJSON (SlackEventWrapper a)
 instance FromJSON Message where
      parseJSON = withObject "message" $ \v -> do
          "message" :: Text <- v .: "type"
+         maybeBotId <- v .: "bot_id"
          channel <- v .: "channel"
          user <- v .: "user"
          text <- v .: "text"
          ts <- v .: "ts"
-         return (Message channel ts user text)
+         return (Message channel ts user text maybeBotId)
 
 instance FromJSON SlackEvent where
     parseJSON = withObject "slackEvent" $ \v -> do

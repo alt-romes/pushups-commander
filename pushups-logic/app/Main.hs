@@ -17,7 +17,7 @@ runCobBot :: MonadIO m => CobSession -> ChatBot (CobT m) s i -> ChatBot m s i
 runCobBot session = fmap (either (\s -> [ReplyWith $ T.pack s]) id) . transformBot (runCobT session)
 
 echoBot :: (Applicative m, ChatBotMessage i) => ChatBot m () i
-echoBot = Bot $ \m () -> pure [ReplyWith $ getContent m]
+echoBot = Bot $ \m () -> if isFromBot m then pure [] else pure [ReactWith "muscle", ReplyWith $ getContent m]
 
 
 main :: IO ()

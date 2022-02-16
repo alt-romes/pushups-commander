@@ -49,6 +49,7 @@ class ChatBotMessage a where
     getServerId :: a -> Text
     getUserId   :: a -> Text
     getContent  :: a -> Text
+    isFromBot   :: a -> Bool
 
 -- | A @Chattable m r a@ means that given a read-only state @r@ and given a @'ChatBotMessage' a@, it is possible to react and reply to said message within monadic context @m@
 class ChatBotMessage a => Chattable m r a where
