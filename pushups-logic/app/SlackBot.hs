@@ -13,6 +13,7 @@ module SlackBot where
 
 import qualified Data.Text.IO as TIO
 import Data.Function ((&))
+import Data.Functor.Identity (Identity(..))
 import Data.Text as T
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
@@ -79,10 +80,11 @@ slackHandler bot (slackToken, session) = \case
     WrappedEvent m@(SlackEventWrapper Message{} _) ->
         runBot bot m (slackToken, session) $> ""
 
-type SlackServer = BotServer SlackEvents (SlackToken, CobSession) (SlackEventWrapper Message) ()
+type SlackServer = BotServer Handler (SlackToken, CobSession) (SlackEventWrapper Message) ()
 
-slackBot :: BotServerConstructor SlackServer
-slackBot = BotServer (Proxy @SlackEvents) slackHandler
+slackBot :: SlackServer
+slackBot = mkBotServant (Proxy @SlackEvents) slackHandler
+
 
 -------- API Types ----------
 

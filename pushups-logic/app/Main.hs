@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Main where
 
 import qualified Data.Text.IO as TIO (readFile)
@@ -18,20 +19,8 @@ main = do
     cobtoken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobtoken
     print "Starting..."
-    let ports = [25564]
-    let bots = [slackPushupBot (slackToken, session)]
-    runChatBots (zip bots ports)
-
-
-slackPushupBot :: (SlackToken, CobSession) -> SlackServer
-slackPushupBot = slackBot pushupsBot
-
-facebookPushupBot :: (FacebookToken, CobSession) -> FacebookServer
-facebookPushupBot = facebookBot pushupsBot
-
-discordPushupBot :: (DiscordToken, CobSession) -> DiscordServer
-discordPushupBot = discordBot pushupsBot
-
-whatsappPushupBot :: (WhatsappToken, CobSession) -> WhatsappServer
-whatsappPushupBot = whatsappBot pushupsBot
-
+    runBotServers
+        25564
+        pushupsBot
+        [ slackBot ]
+        (map (, session) [ slackToken ])

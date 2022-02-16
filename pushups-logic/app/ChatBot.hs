@@ -1,41 +1,42 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE GADTs #-}
 module ChatBot where
 
+import Data.Functor.Identity (Identity(..))
 import Data.Profunctor (Profunctor, dimap)
 import Data.Text (Text)
-import Servant (ServerT, serve, Proxy(..), HasServer, Handler)
+import Servant (Server, serve, Proxy(..), HasServer, Handler)
 import Network.Wai (Application)
-import Control.Concurrent.Async (mapConcurrently_)
+import Control.Concurrent.Async (forConcurrently_)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Control.Monad.Reader (ReaderT, runReaderT, MonadTrans)
 
--- | Run multiple chat bots, each in a specific port
+-- | Run multiple server bots with the same behaviour bot starting on the given port and with the given states
 --
 -- @
--- slackHandler :: Server SlackEvents
--- slackHandler = ...
---
--- main = runChatBots [(slackPushupBot (slackToken, session), 25564)]
+-- main = runChatBots 25564 pushupsBot [(slackPushupBot, (slackToken, session))]
 -- @
-runChatBots :: HasServer a '[] => [(BotServer a s i o, Int)] -> IO ()
-runChatBots = mapConcurrently_ (\(cb, port) -> run port (logStdoutDev $ mkApplication cb))
-
-mkApplication :: HasServer a '[] => BotServer a s i o -> Application
-mkApplication (BotServer proxy server bot reader) = serve proxy (server bot reader)
+-- TODO: Run all applications on the same port concurrently?
+runBotServers :: Int -> Bot m s i o -> [BotServer m s i o] -> [s] -> IO ()
+runBotServers port_ bot servers states =
+    let ports = [port_..port_+length servers-1] in
+    forConcurrently_ (zip3 servers states ports) $ \(botserver, state, port) ->
+        run port (logStdoutDev (runBotServer botserver bot state))
 
 -- | A bot transforms an input into a contextual output
 newtype Bot m s i o = Bot { runBot :: i -> s -> m o }
 
 instance Functor f => Functor (Bot f s i) where
-    fmap f = Bot . fmap (fmap (fmap f)) . runBot
+    fmap f = Bot . (fmap . fmap . fmap) f . runBot
 
 instance Functor f => Profunctor (Bot f s) where
-    dimap f g = Bot . dimap f (fmap (fmap g)) . runBot
+    dimap f g = Bot . dimap f ((fmap . fmap) g) . runBot
 
 -- | A ChatBot message has a server identifier, user id and textual content
 class ChatBotMessage a where
@@ -59,11 +60,18 @@ class ChatBotMessage a => Chattable m r a where
 --
 -- ... ChatBot @SlackEvents (slackHandler tok)
 -- @
-data BotServerT a (m :: * -> *) s i o where
-    BotServer :: HasServer a '[] => Proxy a -> (Bot m s i o -> s -> ServerT a m) -> (Bot m s i o) -> s -> (BotServerT a m s i o)
+-- data BotServerT a (m :: * -> *) s i o where
+--     BotServer :: HasServer a '[] => Proxy a -> (Bot m s i o -> s -> ServerT a m) -> (Bot m s i o) -> s -> (BotServerT a m s i o)
 
-type BotServer a s i o = BotServerT a Handler s i o
+-- | A 'BotServer' is simply a bot that transforms a bot into a server application that processes requests through that bot
+type BotServer m s i o = Bot Identity s (Bot m s i o) Application
 
-type family BotServerConstructor b where
-    BotServerConstructor (BotServer a s i o) = Bot Handler s i o -> s -> BotServer a s i o
+mkBotServer :: (i -> s -> o) -> Bot Identity s i o
+mkBotServer = Bot . (fmap . fmap) Identity
+
+runBotServer :: Bot Identity s i b -> i -> s -> b
+runBotServer = (fmap . fmap) runIdentity . runBot
+
+mkBotServant :: HasServer a '[] => Proxy a -> (i -> s -> Server a) -> Bot Identity s i Application
+mkBotServant proxy = mkBotServer . (fmap . fmap) (serve proxy)
 
