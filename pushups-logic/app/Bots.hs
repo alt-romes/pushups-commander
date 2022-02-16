@@ -43,7 +43,6 @@ type ChatBot m s i = Bot m s i [ChatBotCommands]
 -- | Chat Bots return a list of these. Chat Bot Servers can then use 'runChatBot' to execute them (provided they're 'Chattable')
 data ChatBotCommands = ReactWith Text
                      | ReplyWith Text
-                     | Ok
 
 -- | A ChatBot message has a server identifier, user id and textual content
 class ChatBotMessage a where
@@ -62,7 +61,6 @@ runChatBot r r' i bot =
     mapM_ execute =<< runBot bot i r' where
         execute (ReactWith t) = reactTo r i t
         execute (ReplyWith t) = replyTo r i t
-        execute Ok            = pure ()
 
 
 --- Bot Servers ---

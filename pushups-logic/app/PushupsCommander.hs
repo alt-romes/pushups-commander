@@ -23,8 +23,7 @@ import Control.Monad.Trans.Except
 import Cob
 import Cob.RecordM
 import PushupsRecordM
-import Bots hiding (Ok)
-import qualified Bots (ChatBotCommands(Ok))
+import Bots
 
 ----- Main -----
 
@@ -73,7 +72,7 @@ pushupsCommander = Bot handler where
                     rmUpdateInstances (serverUser^.userId) (masterUsername .~ newName)
                     return [ ReactWith "thumbsup" ]
 
-            Ok -> return [ Bots.Ok ]
+            Ok -> return [ ]
             where
                 addExercise :: MonadIO m => Amount -> Exercise -> CobT m (Ref ExercisesRecord)
                 addExercise amount exercise = do
