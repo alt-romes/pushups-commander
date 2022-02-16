@@ -2,7 +2,7 @@
 module Main where
 
 import qualified Data.Text.IO as TIO (readFile)
-import qualified Data.Text as T (init, Text)
+import qualified Data.Text as T (pack, init, Text)
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
 import Servant (Server, Proxy(..), Handler)
@@ -18,9 +18,9 @@ main = do
     host     <- init <$> readFile "cob-host.secret"
     cobtoken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobtoken
-    print "Starting..."
+    putStrLn "Starting..."
     runBotServers
         25564
-        pushupsBot
+        (pushupsBot session)
         [ slackBot ]
         (map (, session) [ slackToken ])

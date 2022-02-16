@@ -74,15 +74,14 @@ postMessage (slackToken, session) message method = do
 
 type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
-slackHandler :: Bot Handler (SlackToken, CobSession) (SlackEventWrapper Message) () -> (SlackToken, CobSession) -> Server SlackEvents
+slackHandler :: Bot Handler (SlackToken, CobSession) (SlackEventWrapper Message) [ChatBotCommands] -> (SlackToken, CobSession) -> ServerT SlackEvents Handler
 slackHandler bot (slackToken, session) = \case
     UrlVerification x -> pure (challenge x)
     WrappedEvent m@(SlackEventWrapper Message{} _) ->
-        runBot bot m (slackToken, session) $> ""
+        runChatBotCommands @IO (slackToken, session) m <$>
+            runBot bot m (slackToken, session)          $> ""
 
-type SlackServer = BotServer Handler (SlackToken, CobSession) (SlackEventWrapper Message) ()
-
-slackBot :: SlackServer
+slackBot :: ChatBotServer Handler (SlackToken, CobSession) (SlackEventWrapper Message)
 slackBot = mkBotServant (Proxy @SlackEvents) slackHandler
 
 
