@@ -28,9 +28,6 @@ import qualified ChatBot (ChatBotCommands(Ok))
 
 ----- ChatBot -----
 
-pushupsBot :: MonadIO m => CobSession -> ChatBot m s
-pushupsBot session = either (\s -> [ReplyWith $ T.pack s]) id <$> transformBot (runCobT session) pushupsCommander
-
 ----- Main -----
 
 type Amount = Int
@@ -46,9 +43,9 @@ data ImperativeCommand = ActivateCommander Text
                         deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsCommander :: MonadIO m => ChatBot (CobT m) s
+pushupsCommander :: (ChatBotMessage i, MonadIO m) => ChatBot (CobT m) () i
 pushupsCommander = Bot handler where
-    handler msg _ = do
+    handler msg () = do
         command <- CobT $ parseMsg (getText msg)
         log command
         case command of

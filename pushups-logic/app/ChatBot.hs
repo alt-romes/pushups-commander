@@ -47,16 +47,17 @@ data ChatBotCommands = ReactWith Text
                      | ReplyWith Text
                      | Ok
 
-runChatBotCommands :: (Monad m, Chattable m r a) => r -> a -> [ChatBotCommands] -> m ()
-runChatBotCommands r a = mapM_ execute where
-    execute (ReactWith t) = reactTo r a t
-    execute (ReplyWith t) = replyTo r a t
-    execute Ok            = pure ()
+runChatBot :: (Monad m, Chattable m r i) => r -> r' -> i -> ChatBot m r' i -> m ()
+runChatBot r r' i bot =
+    mapM_ execute =<< runBot bot i r' where
+        execute (ReactWith t) = reactTo r i t
+        execute (ReplyWith t) = replyTo r i t
+        execute Ok            = pure ()
 
 -- | A 'BotServer' is simply a bot that transforms a bot into a server application that processes requests through that bot
-type BotServer m s i o   = Bot Identity s (Bot m s i o) Application
-type ChatBotServer m s i = ChatBotMessage i => BotServer m s i [ChatBotCommands]
-type ChatBot m s         = forall i. ChatBotMessage i => Bot m s i [ChatBotCommands]
+type BotServer m s s' i o   = Bot Identity s (Bot m s' i o) Application
+type ChatBotServer m s s' i = BotServer m s s' i [ChatBotCommands]
+type ChatBot m s i          = Bot m s i [ChatBotCommands]
 
 mkBotServer :: (i -> s -> o) -> Bot Identity s i o
 mkBotServer = Bot . (fmap . fmap) Identity
@@ -73,7 +74,7 @@ mkBotServant proxy = mkBotServer . (fmap . fmap) (serve proxy)
 -- main = runChatBots 25564 pushupsBot [(slackPushupBot, (slackToken, session))]
 -- @
 -- TODO: Run all applications on the same port concurrently?
-runBotServers :: Int -> Bot m s i o -> [BotServer m s i o] -> [s] -> IO ()
+runBotServers :: Int -> Bot m s' i o -> [BotServer m s s' i o] -> [s] -> IO ()
 runBotServers port_ bot servers states =
     let ports = [port_..port_+length servers-1] in
     forConcurrently_ (zip3 servers states ports) $ \(botserver, state, port) ->

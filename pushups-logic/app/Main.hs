@@ -6,11 +6,15 @@ import qualified Data.Text as T (pack, init, Text)
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
 import Servant (Server, Proxy(..), Handler)
+import Control.Monad.IO.Class
 
 import Cob
 import ChatBot
 import SlackBot
 import PushupsCommander
+
+runCobBot :: MonadIO m => CobSession -> ChatBot (CobT m) s i -> ChatBot m s i
+runCobBot session = fmap (either (\s -> [ReplyWith $ T.pack s]) id) . transformBot (runCobT session)
 
 main :: IO ()
 main = do
@@ -21,6 +25,6 @@ main = do
     putStrLn "Starting..."
     runBotServers
         25564
-        (pushupsBot session)
+        (runCobBot session pushupsCommander)
         [ slackBot ]
         (map (, session) [ slackToken ])
