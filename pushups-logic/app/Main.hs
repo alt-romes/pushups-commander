@@ -9,7 +9,7 @@ import Servant (Server, Proxy(..), Handler)
 import Control.Monad.IO.Class
 
 import Cob
-import ChatBot
+import Bots
 import SlackBot
 import PushupsCommander
 
@@ -25,6 +25,6 @@ main = do
     putStrLn "Starting..."
     runBotServers
         25564
-        (runCobBot session pushupsCommander)
+        (runCobBot session pushupsBot)
         [ slackBot ]
         (map (, session) [ slackToken ])

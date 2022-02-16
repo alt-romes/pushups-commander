@@ -34,14 +34,14 @@ import Network.HTTP.Simple hiding (Proxy)
 
 import PushupsCommander
 import Cob
-import ChatBot
+import Bots
 
 -------- Chat Bot -----------
 
 instance ChatBotMessage (SlackEventWrapper Message) where
     getServerId = team_id
-    getUserId = user . event
-    getText = text . event
+    getUserId   = user . event
+    getContent  = text . event
 
 instance MonadIO m => Chattable m (SlackToken, CobSession) (SlackEventWrapper Message) where
     reactTo reader (SlackEventWrapper (Message chan ts _ _) _) text = liftIO $

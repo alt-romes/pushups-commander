@@ -23,10 +23,8 @@ import Control.Monad.Trans.Except
 import Cob
 import Cob.RecordM
 import PushupsRecordM
-import ChatBot hiding (Ok)
-import qualified ChatBot (ChatBotCommands(Ok))
-
------ ChatBot -----
+import Bots hiding (Ok)
+import qualified Bots (ChatBotCommands(Ok))
 
 ----- Main -----
 
@@ -43,10 +41,15 @@ data ImperativeCommand = ActivateCommander Text
                         deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsCommander :: (ChatBotMessage i, MonadIO m) => ChatBot (CobT m) () i
+pushupsBot :: (ChatBotMessage i, MonadIO m) => ChatBot (CobT m) () i
+pushupsBot =
+    dimap (\m -> (CobT (parseMsg (getContent m)), getServerId m, getUserId m)) id
+        pushupsCommander
+
+pushupsCommander :: MonadIO m => ChatBot (CobT m) () (CobT m Command, ServerIdentifier, MasterUsername)
 pushupsCommander = Bot handler where
-    handler msg () = do
-        command <- CobT $ parseMsg (getText msg)
+    handler (parser, serverId, masterUserId) () = do
+        command <- parser
         log command
         case command of
             AddExercise amount exercise -> do
@@ -70,10 +73,8 @@ pushupsCommander = Bot handler where
                     rmUpdateInstances (serverUser^.userId) (masterUsername .~ newName)
                     return [ ReactWith "thumbsup" ]
 
-            Ok -> return [ ChatBot.Ok ]
+            Ok -> return [ Bots.Ok ]
             where
-                serverId = getServerId msg
-                masterUserId = getUserId msg
                 addExercise :: MonadIO m => Amount -> Exercise -> CobT m (Ref ExercisesRecord)
                 addExercise amount exercise = do
                     (serverUserId, _) <- rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> masterUserId) createServerUser
