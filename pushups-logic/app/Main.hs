@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
@@ -15,14 +14,12 @@ import Bots
 import SlackBot
 import DiscordBot
 import PushupsCommander
-import Utils
 
 echoBot :: (Applicative m, ChatBotMessage i) => ChatBot m i
 echoBot = Bot handler
     where
     handler m = if isFromBot m then pure [] else
         pure [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)]
-
 
 main :: IO ()
 main = do
@@ -32,7 +29,8 @@ main = do
     cobToken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobToken
     putStrLn "Starting..."
-    runBotServers
-        25564
-        ( $(replicateTuple 3 pushupsBot) )
-        ( slackBot (slackToken, session), discordBot discordToken )
+    runBotServers 25564
+        ( pushupsBot session
+        , pushupsBot session )
+        ( slackBot (slackToken, session)
+        , discordBot discordToken )

@@ -19,8 +19,6 @@ import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Control.Monad.Reader (ReaderT, runReaderT, MonadTrans)
 import Data.Maybe (fromJust)
 
-import Utils
-
 --- Bots ----------
 
 -- | A bot transforms an input into a contextual output
