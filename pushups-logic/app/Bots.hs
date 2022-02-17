@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
@@ -13,7 +14,7 @@ import Data.Text (Text)
 import Servant (Server, ServerT, serve, hoistServer, Proxy(..), HasServer, Handler)
 import Network.Wai (Application)
 import Control.Concurrent.Async (forConcurrently_)
-import Network.Wai.Handler.Warp (run)
+import qualified Network.Wai.Handler.Warp as Warp (run)
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Control.Monad.Reader (ReaderT, runReaderT, MonadTrans)
 
@@ -57,14 +58,24 @@ class ChatBotMessage a => Chattable m r a where
     replyTo :: r -> a -> Text -> m ()
 
 -- | Execute all resulting chat bot actions of a chat bot
-runChatBot :: (Monad m, Chattable m r i) => r -> r' -> i -> ChatBot m r' i -> m ()
-runChatBot r r' i bot =
+runChatBot :: (Monad m, Chattable m r i) => ChatBot m r' i -> r -> r' -> i -> m ()
+runChatBot bot r r' i =
     mapM_ execute =<< runBot bot i r' where
         execute (ReactWith t) = reactTo r i t
         execute (ReplyWith t) = replyTo r i t
 
 
 --- Bot Servers ---
+
+class Runnable a where
+    run :: Int -> a -> IO ()
+
+instance Runnable a => Runnable (Identity a) where
+    run port = run port . runIdentity
+
+instance Runnable Application where
+    run port = Warp.run port . logStdoutDev
+
 
 -- | A 'BotServer' is just a 'Bot' that transforms a 'Bot' into a WAI server 'Application' that processes requests through that bot
 type BotServer m s s' i o   = Bot Identity s (Bot m s' i o) Application
@@ -75,8 +86,8 @@ type ChatBotServer m s s' i = BotServer m s s' i [ChatBotCommands]
 mkBotServer :: (i -> s -> o) -> Bot Identity s i o
 mkBotServer = Bot . (fmap . fmap) Identity
 
-runBotServer :: Bot Identity s i b -> i -> s -> b
-runBotServer = (fmap . fmap) runIdentity . runBot
+-- runBotServer :: Bot Identity s i b -> i -> s -> b
+-- runBotServer = (fmap . fmap) runIdentity . runBot
 
 mkBotServant :: HasServer a '[] => Proxy a -> (i -> s -> Server a) -> Bot Identity s i Application
 mkBotServant proxy = mkBotServer . (fmap . fmap) (serve proxy)
@@ -91,5 +102,5 @@ runBotServers :: Int -> Bot m s' i o -> [BotServer m s s' i o] -> [s] -> IO ()
 runBotServers port_ bot servers states =
     let ports = [port_..port_+length servers-1] in
     forConcurrently_ (zip3 servers states ports) $ \(botserver, state, port) ->
-        run port (logStdoutDev (runBotServer botserver bot state))
+        run port (runBot botserver bot state)
 

@@ -33,8 +33,8 @@ import Servant.API.ContentTypes
 import Network.HTTP.Conduit as Net (Manager, Cookie(..), Request(..), defaultRequest, newManager, tlsManagerSettings)
 import Network.HTTP.Simple hiding (Proxy)
 
-import PushupsCommander
 import Cob
+import PushupsCommander
 import Bots
 
 -------- Chat Bot -----------
@@ -76,10 +76,10 @@ postMessage (slackToken, session) message method = do
 
 type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
-slackHandler :: Bot Handler () (SlackEventWrapper Message) [ChatBotCommands] -> (SlackToken, CobSession) -> ServerT SlackEvents Handler
+slackHandler :: ChatBot Handler () (SlackEventWrapper Message) -> (SlackToken, CobSession) -> ServerT SlackEvents Handler
 slackHandler bot r = \case
     UrlVerification x -> pure (challenge x)
-    WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot r () m bot $> ""
+    WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot r () m $> ""
 
 slackBot :: ChatBotServer Handler (SlackToken, CobSession) () (SlackEventWrapper Message)
 slackBot = mkBotServant (Proxy @SlackEvents) slackHandler
@@ -110,7 +110,7 @@ instance FromJSON a => FromJSON (SlackEventWrapper a)
 instance FromJSON Message where
      parseJSON = withObject "message" $ \v -> do
          "message" :: Text <- v .: "type"
-         maybeBotId <- v .: "bot_id"
+         maybeBotId <- v .:? "bot_id"
          channel <- v .: "channel"
          user <- v .: "user"
          text <- v .: "text"

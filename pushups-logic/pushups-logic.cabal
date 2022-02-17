@@ -27,6 +27,7 @@ executable pushups-chatbot
                     PushupsRecordM,
                     Bots,
                     SlackBot,
+                    DiscordBot,
                     MessengerBot
 
     hs-source-dirs:   app
@@ -56,4 +57,6 @@ executable pushups-chatbot
         servant-server,
 
         async ^>=2.2.4,
-        profunctors
+        profunctors,
+
+        discord-haskell^>=1.11.0
