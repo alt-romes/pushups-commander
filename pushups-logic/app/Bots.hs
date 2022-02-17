@@ -17,29 +17,32 @@ import Control.Concurrent.Async (forConcurrently_)
 import qualified Network.Wai.Handler.Warp as Warp (run)
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Control.Monad.Reader (ReaderT, runReaderT, MonadTrans)
+import Data.Maybe (fromJust)
+
+import Utils
 
 --- Bots ----------
 
 -- | A bot transforms an input into a contextual output
-newtype Bot m s i o = Bot { runBot :: i -> s -> m o }
+newtype Bot m i o = Bot { runBot :: i -> m o }
 
-instance Functor f => Functor (Bot f s i) where
-    fmap f = Bot . (fmap . fmap . fmap) f . runBot
+instance Functor f => Functor (Bot f i) where
+    fmap f = Bot . (fmap . fmap) f . runBot
 
-instance Functor f => Profunctor (Bot f s) where
-    dimap f g = Bot . dimap f ((fmap . fmap) g) . runBot
+instance Functor f => Profunctor (Bot f) where
+    dimap f g = Bot . dimap f (fmap g) . runBot
 
-hoistBot :: (forall o. f o -> g o) -> Bot f s i o -> Bot g s i o
-hoistBot nt = Bot . (fmap . fmap) nt . runBot
+hoistBot :: (forall o. f o -> g o) -> Bot f i o -> Bot g i o
+hoistBot nt = Bot . fmap nt . runBot
 
-transformBot :: (f o -> g o') -> Bot f s i o -> Bot g s i o'
-transformBot t = Bot . (fmap . fmap) t . runBot
+transformBot :: (f o -> g o') -> Bot f i o -> Bot g i o'
+transformBot t = Bot . fmap t . runBot
 
 
 --- Chat Bots -----
 
 -- | A Chat Bot is a Bot that outputs '[ChatBotCommands']
-type ChatBot m s i = Bot m s i [ChatBotCommands]
+type ChatBot m i = Bot m i [ChatBotCommands]
 
 -- | Chat Bots return a list of these. Chat Bot Servers can then use 'runChatBot' to execute them (provided they're 'Chattable')
 data ChatBotCommands = ReactWith Text
@@ -53,19 +56,21 @@ class ChatBotMessage a where
     isFromBot   :: a -> Bool
 
 -- | A @Chattable m r a@ means that given a read-only state @r@ and given a @'ChatBotMessage' a@, it is possible to react and reply to said message within monadic context @m@
-class ChatBotMessage a => Chattable m r a where
-    reactTo :: r -> a -> Text -> m ()
-    replyTo :: r -> a -> Text -> m ()
+class ChatBotMessage a => Chattable m a where
+    reactTo :: a -> Text -> m ()
+    replyTo :: a -> Text -> m ()
 
 -- | Execute all resulting chat bot actions of a chat bot
-runChatBot :: (Monad m, Chattable m r i) => ChatBot m r' i -> r -> r' -> i -> m ()
-runChatBot bot r r' i =
-    mapM_ execute =<< runBot bot i r' where
-        execute (ReactWith t) = reactTo r i t
-        execute (ReplyWith t) = replyTo r i t
+runChatBot :: (Monad m, Chattable m i) => ChatBot m i -> i -> m ()
+runChatBot bot i =
+    mapM_ execute =<< runBot bot i where
+        execute (ReactWith t) = reactTo i t
+        execute (ReplyWith t) = replyTo i t
 
 
 --- Bot Servers ---
+
+type BotToken = Text
 
 class Runnable a where
     run :: Int -> a -> IO ()
@@ -76,21 +81,13 @@ instance Runnable a => Runnable (Identity a) where
 instance Runnable Application where
     run port = Warp.run port . logStdoutDev
 
+data RunnableServer = forall a. Runnable a => RunnableServer a
 
 -- | A 'BotServer' is just a 'Bot' that transforms a 'Bot' into a WAI server 'Application' that processes requests through that bot
-type BotServer m s s' i o   = Bot Identity s (Bot m s' i o) Application
+type BotServer m i o o' = Bot m (Bot m i o) o'
 
 -- | A 'ChatBotServer' is just a 'Bot' that transforms a 'ChatBot' into a WAI server 'Application' that processes requests through that bot
-type ChatBotServer m s s' i = BotServer m s s' i [ChatBotCommands]
-
-mkBotServer :: (i -> s -> o) -> Bot Identity s i o
-mkBotServer = Bot . (fmap . fmap) Identity
-
--- runBotServer :: Bot Identity s i b -> i -> s -> b
--- runBotServer = (fmap . fmap) runIdentity . runBot
-
-mkBotServant :: HasServer a '[] => Proxy a -> (i -> s -> Server a) -> Bot Identity s i Application
-mkBotServant proxy = mkBotServer . (fmap . fmap) (serve proxy)
+-- type ChatBotServer m i o = BotServer m i [ChatBotCommands] o
 
 -- | Run multiple server bots with the same behaviour bot starting on the given port and with the given states
 --
@@ -98,9 +95,9 @@ mkBotServant proxy = mkBotServer . (fmap . fmap) (serve proxy)
 -- main = runChatBots 25564 pushupsBot [(slackPushupBot, (slackToken, session))]
 -- @
 -- TODO: Run all applications on the same port concurrently?
-runBotServers :: Int -> Bot m s' i o -> [BotServer m s s' i o] -> [s] -> IO ()
-runBotServers port_ bot servers states =
-    let ports = [port_..port_+length servers-1] in
-    forConcurrently_ (zip3 servers states ports) $ \(botserver, state, port) ->
-        run port (runBot botserver bot state)
+runBotServers :: (Runnable o, Runnable o') => Int -> (i, i') -> (Bot Identity i o, Bot Identity i' o') -> IO ()
+runBotServers port (bot1, bot2) (server1, server2) =
+    forConcurrently_ ((server1, bot1), (server2, bot2)) (run port . uncurry runBot)
 
+-- runConcurrently :: Runnable a => Int -> [a] -> IO ()
+-- runConcurrently port = mapConcurrently_ (uncurry run) . zip [port..]

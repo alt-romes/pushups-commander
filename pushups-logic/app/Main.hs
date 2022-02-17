@@ -1,5 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
 module Main where
 
 import qualified Data.Text.IO as TIO (readFile)
@@ -15,14 +15,12 @@ import Bots
 import SlackBot
 import DiscordBot
 import PushupsCommander
+import Utils
 
-runCobBot :: MonadIO m => CobSession -> ChatBot (CobT m) s i -> ChatBot m s i
-runCobBot session = fmap (either (\s -> [ReplyWith $ T.pack s]) id) . transformBot (runCobT session)
-
-echoBot :: (Applicative m, ChatBotMessage i) => ChatBot m () i
+echoBot :: (Applicative m, ChatBotMessage i) => ChatBot m i
 echoBot = Bot handler
     where
-    handler m () = if isFromBot m then pure [] else
+    handler m = if isFromBot m then pure [] else
         pure [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)]
 
 
@@ -31,12 +29,10 @@ main = do
     slackToken   <- T.init <$> TIO.readFile "slack-token.secret"
     discordToken <- T.init <$> TIO.readFile "discord-token.secret"
     host     <- init <$> readFile "cob-host.secret"
-    cobtoken <- init <$> readFile "cob-token.secret"
-    session  <- makeSession host cobtoken
+    cobToken <- init <$> readFile "cob-token.secret"
+    session  <- makeSession host cobToken
     putStrLn "Starting..."
     runBotServers
         25564
-        (runCobBot session pushupsBot)
-        -- echoBot
-        [ slackBot, discordBot ]
-        (map (, session) [ slackToken, discordToken ])
+        ( $(replicateTuple 3 pushupsBot) )
+        ( slackBot (slackToken, session), discordBot discordToken )

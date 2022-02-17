@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 module DiscordBot where
 
@@ -18,6 +18,7 @@ import Data.Maybe
 
 import Control.Lens hiding ((.=))
 import Control.Monad
+import Control.Monad.Reader (MonadReader, ask, runReader)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
@@ -30,7 +31,7 @@ import Cob
 import PushupsCommander
 import Bots
 
--------- Chat Bot -----------
+----- Chat Bot -----------
 
 instance ChatBotMessage Message where
     getServerId m = (maybe ("Discord-DM-" <> getUserId m) (pack . show) . messageGuildId) m
@@ -38,29 +39,29 @@ instance ChatBotMessage Message where
     getContent  = messageContent
     isFromBot   = userIsBot . messageAuthor
 
-instance Chattable DiscordHandler () Message where
-    reactTo reader m = void . restCall . R.CreateReaction (messageChannelId m, messageId m)
-    replyTo reader m text = void . restCall $
+instance Chattable DiscordHandler Message where
+    reactTo m = void . restCall . R.CreateReaction (messageChannelId m, messageId m)
+    replyTo m text = void . restCall $
       R.CreateMessageDetailed (messageChannelId m) $
         def { R.messageDetailedContent = text
             , R.messageDetailedReference = Just $ def { referenceMessageId = Just (messageId m) } }
 
------ Run Discord Bot -----
+----- Discord ------------
 
-discordHandler :: ChatBot DiscordHandler () Message -> () -> Event -> DiscordHandler ()
-discordHandler bot r event = case event of
-    MessageCreate m -> runChatBot bot r () m
+discordHandler :: ChatBot DiscordHandler Message -> Event -> DiscordHandler ()
+discordHandler bot event = case event of
+    MessageCreate m -> runChatBot bot m
     _ -> return ()
 
-
-discordBot :: Applicative m => Bot m Text (ChatBot DiscordHandler () Message) RunDiscordOpts
-discordBot = Bot $ \bot disctok -> pure def
-                 { discordToken = disctok
-                 , discordOnStart = liftIO $ TIO.putStrLn "Started"
-                 , discordOnEnd = liftIO $ TIO.putStrLn "Ended"
-                 , discordOnEvent = discordHandler bot ()
-                 , discordOnLog = TIO.putStrLn
-                 , discordForkThreadForEvents = True }
+discordBot :: BotToken -> Bot Identity (ChatBot DiscordHandler Message) RunDiscordOpts
+discordBot discordToken = Bot $ \bot -> do
+    pure def
+         { discordToken = discordToken
+         , discordOnStart = liftIO $ TIO.putStrLn "Started"
+         , discordOnEnd = liftIO $ TIO.putStrLn "Ended"
+         , discordOnEvent = discordHandler bot
+         , discordOnLog = TIO.putStrLn
+         , discordForkThreadForEvents = True }
 
 instance Runnable RunDiscordOpts where
     run _ = TIO.putStrLn <=< runDiscord 

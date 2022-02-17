@@ -26,6 +26,7 @@ executable pushups-chatbot
     other-modules:  PushupsCommander,
                     PushupsRecordM,
                     Bots,
+                    Utils,
                     SlackBot,
                     DiscordBot,
                     MessengerBot
@@ -35,6 +36,7 @@ executable pushups-chatbot
     ghc-options:      -threaded -fllvm
     build-depends:
         base ^>= 4.15.0.0,
+        template-haskell,
 
         text,
         bytestring,
