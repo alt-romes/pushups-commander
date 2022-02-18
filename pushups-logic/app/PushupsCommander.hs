@@ -40,13 +40,13 @@ data ImperativeCommand = ActivateCommander Text
                         deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsBot :: CobSession -> ChatBotIO
-pushupsBot session = (fmap (either (\s -> [ReplyWith $ T.pack s]) id) . transformBot (runCobT session)) pushupsCobBot
+pushupsBot :: CobSession -> ChatBot MonadicIO
+pushupsBot session = ChatBot (transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCobT session) pushupsCobBot)
 
-pushupsCobBot :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommands]
+pushupsCobBot :: (MonadIO m, ChatBotMessage i) => Bot (CobT m) i [ChatBotCommand]
 pushupsCobBot = dimap (\m -> ((CobT . parseMsg . getContent) m, getServerId m, getUserId m)) id pushupsCommander
 
-pushupsCommander :: MonadIO m => Bot (CobT m) (CobT m Command, ServerIdentifier, MasterUsername) [ChatBotCommands]
+pushupsCommander :: MonadIO m => Bot (CobT m) (CobT m Command, ServerIdentifier, MasterUsername) [ChatBotCommand]
 pushupsCommander = Bot handler where
     handler (parser, serverId, masterUserId) = do
         command <- parser

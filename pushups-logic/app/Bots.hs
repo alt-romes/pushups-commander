@@ -1,14 +1,15 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE GADTs #-}
 module Bots where
 
-import Data.Dynamic
+import GHC.Exts (Constraint)
 
 import Data.Functor.Identity (Identity(..))
 import Data.Profunctor (Profunctor, dimap)
@@ -35,19 +36,28 @@ instance Functor f => Profunctor (Bot f) where
 hoistBot :: (forall o. f o -> g o) -> Bot f i o -> Bot g i o
 hoistBot nt = Bot . fmap nt . runBot
 
-transformBot :: (f o -> g o') -> Bot f i o -> Bot g i o'
+transformBot :: (f o -> g o) -> Bot f i o -> Bot g i o
 transformBot t = Bot . fmap t . runBot
 
 
 --- Chat Bots -----
 
--- | A Chat Bot is a Bot that outputs '[ChatBotCommands']
-type ChatBot = forall m i. (Monad m, ChatBotMessage i) => Bot m i [ChatBotCommands]
-type ChatBotIO = forall m i. (MonadIO m, ChatBotMessage i) => Bot m i [ChatBotCommands]
+-- | A 'ChatBot' is a Bot that transforms any 'ChatBotMessage' into @['ChatBotCommand']@.
+-- It can be constructed with additional constraints such as @forall m. Monad m@ and @forall m. MonadIO m@
+data ChatBot p where
+    ChatBot   :: (forall m i. (ChatBotConstraint p m, ChatBotMessage i) => Bot m i [ChatBotCommand]) -> ChatBot p
+
+data AnyM
+data Monadic
+data MonadicIO
+type family ChatBotConstraint p (m :: * -> *) :: Constraint where
+    ChatBotConstraint AnyM m = ()
+    ChatBotConstraint Monadic   m = Monad m
+    ChatBotConstraint MonadicIO m = MonadIO m
 
 -- | Chat Bots return a list of these. Chat Bot Servers can then use 'runChatBot' to execute them (provided they're 'Chattable')
-data ChatBotCommands = ReactWith Text
-                     | ReplyWith Text
+data ChatBotCommand = ReactWith Text
+                    | ReplyWith Text
 
 -- | A ChatBot message has a server identifier, user id and textual content
 class ChatBotMessage a where
@@ -62,7 +72,7 @@ class ChatBotMessage a => Chattable m a where
     replyTo :: a -> Text -> m ()
 
 -- | Execute all resulting chat bot actions of a chat bot
-runChatBot :: (Monad m, Chattable m i) => Bot m i [ChatBotCommands] -> i -> m ()
+runChatBot :: (Monad m, Chattable m i) => Bot m i [ChatBotCommand] -> i -> m ()
 runChatBot bot i =
     mapM_ execute =<< runBot bot i where
         execute (ReactWith t) = reactTo i t
@@ -82,13 +92,9 @@ instance Runnable a => Runnable (Identity a) where
 instance Runnable Application where
     run port = Warp.run port . logStdoutDev
 
--- | A 'BotServer' is just a 'Bot' that transforms a 'Bot' into a @'Runnable' a => 'Identity' a@
-data BotServer = forall m i o'. (Monad m, ChatBotMessage i, Runnable o') => BotServer (Bot Identity (Bot m i [ChatBotCommands]) o')
-data BotServerIO = forall m i o'. (MonadIO m, ChatBotMessage i, Runnable o') => BotServerIO (Bot Identity (Bot m i [ChatBotCommands]) o')
--- type ChatBotServer m = BotServer m [ChatBotCommands]
-
--- | A 'ChatBotServer' is just a 'Bot' that transforms a 'ChatBot' into a WAI server 'Application' that processes requests through that bot
--- type ChatBotServer m i o = BotServer m i [ChatBotCommands] o
+-- | A 'ChatBotServer' is just a 'Bot' that transforms a 'Bot' that receives 'ChatBotMessage's and returns @m ['ChatBotCommand']@ into a @'Runnable' a => 'Identity' a@
+data ChatBotServer p where
+    ChatBotServer :: (ChatBotConstraint p m, ChatBotMessage i, Runnable o') => Bot Identity (Bot m i [ChatBotCommand]) o' -> ChatBotServer p
 
 -- | Run multiple server bots with the same behaviour bot starting on the given port and with the given states
 --
@@ -96,11 +102,8 @@ data BotServerIO = forall m i o'. (MonadIO m, ChatBotMessage i, Runnable o') => 
 -- main = runChatBots 25564 pushupsBot [(slackPushupBot, (slackToken, session))]
 -- @
 -- TODO: Run all applications on the same port concurrently?
-runBotServers :: Int -> ChatBot -> [BotServer] -> IO ()
-runBotServers port bot = mapConcurrently_ (\(BotServer b) -> run port (runBot b bot))
+runChatBotServers :: Int -> ChatBot p -> [ChatBotServer p] -> IO ()
+runChatBotServers port (ChatBot bot) = mapConcurrently_ (\(ChatBotServer b) -> run port (runBot b bot))
 
-runBotServersIO :: Int -> ChatBotIO -> [BotServerIO] -> IO ()
-runBotServersIO port bot = mapConcurrently_ (\(BotServerIO b) -> run port (runBot b bot))
-
--- runConcurrently :: Runnable a => Int -> [a] -> IO ()
--- runConcurrently port = mapConcurrently_ (uncurry run) . zip [port..]
+-- runBotServersIO :: Int -> ChatBotIO -> [ChatBotServer] -> IO ()
+-- runBotServersIO port bot = mapConcurrently_ (\(ChatBotServer b) -> run port (runBot b bot))

@@ -11,6 +11,8 @@
 {-# LANGUAGE TypeOperators #-}
 module SlackBot where
 
+import GHC.Exts (Constraint)
+
 import qualified Data.Text.IO as TIO
 import Data.Function ((&))
 import Data.Maybe (isJust)
@@ -79,16 +81,16 @@ type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
 type SlackHandler = ReaderT (BotToken, CobSession) Handler
 
-slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommands] -> ServerT SlackEvents SlackHandler
+slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand] -> ServerT SlackEvents SlackHandler
 slackHandler bot = \case
     UrlVerification x -> pure (challenge x)
     WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
 
-slackBot :: (BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommands]) Application
+slackBot :: (BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand]) Application
 slackBot r = Bot (pure . serve (Proxy @SlackEvents) . hoistServer (Proxy @SlackEvents) (`runReaderT` r) . slackHandler)
 
-slackServer :: (BotToken, CobSession) -> BotServerIO
-slackServer = BotServerIO . slackBot
+slackServer :: (BotToken, CobSession) -> ChatBotServer AnyM
+slackServer = ChatBotServer . slackBot
 
 -------- API Types ----------
 

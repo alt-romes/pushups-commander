@@ -48,12 +48,12 @@ instance Chattable DiscordHandler Message where
 
 ----- Discord ------------
 
-discordHandler :: Bot DiscordHandler Message [ChatBotCommands] -> Event -> DiscordHandler ()
+discordHandler :: Bot DiscordHandler Message [ChatBotCommand] -> Event -> DiscordHandler ()
 discordHandler bot event = case event of
     MessageCreate m -> runChatBot bot m
     _ -> return ()
 
-discordBot :: BotToken -> Bot Identity (Bot DiscordHandler Message [ChatBotCommands]) RunDiscordOpts
+discordBot :: BotToken -> Bot Identity (Bot DiscordHandler Message [ChatBotCommand]) RunDiscordOpts
 discordBot discordToken = Bot $ \bot -> do
     pure def
          { discordToken = discordToken
@@ -63,8 +63,8 @@ discordBot discordToken = Bot $ \bot -> do
          , discordOnLog = TIO.putStrLn
          , discordForkThreadForEvents = True }
 
-discordServer :: BotToken -> BotServerIO
-discordServer = BotServerIO . discordBot
+discordServer :: BotToken -> ChatBotServer AnyM
+discordServer = ChatBotServer . discordBot
 
 instance Runnable RunDiscordOpts where
     run _ = TIO.putStrLn <=< runDiscord 
