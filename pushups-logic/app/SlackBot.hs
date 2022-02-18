@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeOperators #-}
 module SlackBot where
 
+import Data.String (fromString)
 import Crypto.Hash (digestFromByteString)
 import Crypto.MAC.HMAC (hmac, HMAC(..))
 import Crypto.Hash.Algorithms (SHA256)
@@ -98,8 +99,8 @@ type SlackHandler = ReaderT (BotToken, BotToken, CobSession) Handler
 slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand] -> ServerT SlackEvents SlackHandler
 slackHandler bot (Just timestamp) (Just slackSignature) rawbody = do
     signingSecret <- asks (\(_,s,_) -> encodeUtf8 s)
-    let localSignature = "v0=" <> show (hmacGetDigest (hmac signingSecret ("v0:" <> encodeUtf8 timestamp <> ":" <> lazyToStrict rawbody) :: HMAC SHA256))
-    if localSignature /= slackSignature
+    liftIO $ print $ hmacGetDigest <$> ((HMAC <$> digestFromByteString (fromString @ByteString slackSignature)) :: Maybe (HMAC SHA256))
+    if signatureOk signingSecret
       then pure "Signatures do not match!"
       else case decode @SlackEvent rawbody of
         Nothing -> pure "Couldn't decode a slack event from the body"
@@ -108,6 +109,10 @@ slackHandler bot (Just timestamp) (Just slackSignature) rawbody = do
           WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
     where
         lazyToStrict = B8.concat . LB.toChunks
+        signatureOk signingSecret =
+            let localSignature = "v0=" <> show (hmacGetDigest (hmac signingSecret ("v0:" <> encodeUtf8 timestamp <> ":" <> lazyToStrict rawbody) :: HMAC SHA256))
+             in localSignature /= slackSignature
+
 slackHandler bot _ _ rawbody = pure "Required request headers (X-Slack-...) not provided"
 
 slackBot :: (BotToken, BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand]) Application
