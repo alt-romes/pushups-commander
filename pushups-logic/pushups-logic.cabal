@@ -58,5 +58,6 @@ executable pushups-chatbot
 
         async ^>=2.2.4,
         profunctors,
+        cryptonite,
 
         discord-haskell^>=1.11.0

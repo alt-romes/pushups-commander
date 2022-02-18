@@ -10,6 +10,9 @@
 {-# LANGUAGE TypeOperators #-}
 module SlackBot where
 
+import Crypto.Hash (digestFromByteString)
+import Crypto.MAC.HMAC (hmac, HMAC(..))
+import Crypto.Hash.Algorithms (SHA256)
 import qualified Data.Text.IO as TIO
 import Data.Function ((&))
 import Data.Maybe (isJust)
@@ -17,7 +20,8 @@ import Data.Functor.Identity (Identity(..))
 import Data.Text as T
 import qualified Data.Text.Lazy as LT (Text)
 import Data.ByteString (ByteString(..))
-import qualified Data.ByteString.Lazy as LB (ByteString(..))
+import qualified Data.ByteString.Lazy as LB (ByteString(..), toChunks)
+import qualified Data.ByteString.Char8 as B8 (concat)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as TLE (encodeUtf8)
 
@@ -29,11 +33,9 @@ import Control.Applicative
 import Data.Functor (($>))
 import Data.Aeson
 import Servant
-import Servant.API
-import Servant.API.ContentTypes
 
 import Network.HTTP.Conduit as Net (Manager, Cookie(..), Request(..), defaultRequest, newManager, tlsManagerSettings)
-import Network.HTTP.Simple hiding (Proxy)
+import Network.HTTP.Simple (setRequestBodyJSON, addRequestHeader, setRequestManager, httpNoBody)
 
 import Cob
 import PushupsCommander
@@ -80,19 +82,32 @@ postMessage message method = do
 instance {-# OVERLAPPING #-} MimeUnrender JSON LB.ByteString where
     mimeUnrender _ = Right
 
+instance FromHttpApiData (HMAC SHA256) where
+    parseQueryParam = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . encodeUtf8
+    parseHeader = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString
 
-type SlackEvents = "slack" :> ReqBody '[JSON] LB.ByteString :> Post '[JSON] Text
+type SlackEvents = "slack"
+                 :> Header "X-Slack-Request-Timestamp" Text
+                 :> Header "X-Slack-Signature" (HMAC SHA256)
+                 :> ReqBody '[JSON] LB.ByteString
+                 :> Post '[JSON] Text
 
 type SlackHandler = ReaderT (BotToken, BotToken, CobSession) Handler
 
 slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand] -> ServerT SlackEvents SlackHandler
-slackHandler bot body = do
-    liftIO $ print body
-    case decode @SlackEvent body of
-      Nothing -> pure "Couldn't decode a slack event from the body"
-      Just slackEvent -> case slackEvent of
-        UrlVerification x -> pure (challenge x)
-        WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
+slackHandler bot (Just timestamp) (Just slackSignature) rawbody = do
+    signingSecret <- asks (\(_,s,_) -> encodeUtf8 s)
+    let localSignature = hmac signingSecret ("v0:" <> encodeUtf8 timestamp <> ":" <> lazyToStrict rawbody) :: HMAC SHA256
+    if localSignature /= slackSignature
+      then pure "Signatures do not match!"
+      else case decode @SlackEvent rawbody of
+        Nothing -> pure "Couldn't decode a slack event from the body"
+        Just slackEvent -> case slackEvent of
+          UrlVerification x -> pure (challenge x)
+          WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
+    where
+        lazyToStrict = B8.concat . LB.toChunks
+slackHandler bot _ _ rawbody = pure "Required request headers (X-Slack-...) not provided"
 
 slackBot :: (BotToken, BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand]) Application
 slackBot r = Bot (pure . serve (Proxy @SlackEvents) . hoistServer (Proxy @SlackEvents) (`runReaderT` r) . slackHandler)
