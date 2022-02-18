@@ -79,14 +79,16 @@ type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
 
 type SlackHandler = ReaderT (BotToken, CobSession) Handler
 
-slackHandler :: ChatBot SlackHandler (SlackEventWrapper Message) -> ServerT SlackEvents SlackHandler
+slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommands] -> ServerT SlackEvents SlackHandler
 slackHandler bot = \case
     UrlVerification x -> pure (challenge x)
     WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
 
-slackBot :: (BotToken, CobSession) -> Bot Identity (ChatBot SlackHandler (SlackEventWrapper Message)) Application
+slackBot :: (BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommands]) Application
 slackBot r = Bot (pure . serve (Proxy @SlackEvents) . hoistServer (Proxy @SlackEvents) (`runReaderT` r) . slackHandler)
 
+slackServer :: (BotToken, CobSession) -> BotServerIO
+slackServer = BotServerIO . slackBot
 
 -------- API Types ----------
 
