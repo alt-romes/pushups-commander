@@ -88,7 +88,8 @@ instance FromHttpApiData (HMAC SHA256) where
 
 type SlackEvents = "slack"
                  :> Header "X-Slack-Request-Timestamp" Text
-                 :> Header "X-Slack-Signature" (HMAC SHA256)
+                 -- :> Header "X-Slack-Signature" (HMAC SHA256)
+                 :> Header "X-Slack-Signature" String
                  :> ReqBody '[JSON] LB.ByteString
                  :> Post '[JSON] Text
 
@@ -97,7 +98,7 @@ type SlackHandler = ReaderT (BotToken, BotToken, CobSession) Handler
 slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand] -> ServerT SlackEvents SlackHandler
 slackHandler bot (Just timestamp) (Just slackSignature) rawbody = do
     signingSecret <- asks (\(_,s,_) -> encodeUtf8 s)
-    let localSignature = hmac signingSecret ("v0:" <> encodeUtf8 timestamp <> ":" <> lazyToStrict rawbody) :: HMAC SHA256
+    let localSignature = "v0=" <> show (hmacGetDigest (hmac signingSecret ("v0:" <> encodeUtf8 timestamp <> ":" <> lazyToStrict rawbody) :: HMAC SHA256))
     if localSignature /= slackSignature
       then pure "Signatures do not match!"
       else case decode @SlackEvent rawbody of
