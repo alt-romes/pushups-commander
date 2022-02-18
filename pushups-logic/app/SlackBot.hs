@@ -19,7 +19,7 @@ import Data.Maybe (isJust)
 import Data.Functor.Identity (Identity(..))
 import Data.Text as T
 import qualified Data.Text.Lazy as LT (Text)
-import Data.ByteString (ByteString(..))
+import Data.ByteString as BS (ByteString(..), drop)
 import qualified Data.ByteString.Lazy as LB (ByteString(..), toChunks)
 import qualified Data.ByteString.Char8 as B8 (concat)
 import Data.Text.Encoding (encodeUtf8)
@@ -83,8 +83,9 @@ instance {-# OVERLAPPING #-} MimeUnrender JSON LB.ByteString where
     mimeUnrender _ = Right
 
 instance FromHttpApiData (HMAC SHA256) where
-    parseQueryParam = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . encodeUtf8 . T.drop 3
-    parseHeader = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString
+    -- parseQueryParam = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . encodeUtf8 . T.drop 3
+    parseQueryParam = undefined
+    parseHeader = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . BS.drop 3
 
 type SlackEvents = "slack"
                  :> Header "X-Slack-Request-Timestamp" Text
