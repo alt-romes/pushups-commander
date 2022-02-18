@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
@@ -18,8 +17,10 @@ import Data.Function ((&))
 import Data.Maybe (isJust)
 import Data.Functor.Identity (Identity(..))
 import Data.Text as T
+import qualified Data.Text.Lazy as LT (Text)
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text.Lazy.Encoding as TLE (encodeUtf8)
 
 import Control.Monad.Reader
 import GHC.Generics
@@ -62,7 +63,7 @@ instance Chattable SlackHandler (SlackEventWrapper Message) where
 
 postMessage :: Value -> ByteString -> SlackHandler ()
 postMessage message method = do
-    (botToken, session) <- ask
+    (botToken, _, session) <- ask
     let request = setRequestBodyJSON message $
                   addRequestHeader "Authorization" ("Bearer " <> encodeUtf8 botToken) $
                   setRequestManager (tlsmanager session) $
@@ -77,19 +78,23 @@ postMessage message method = do
 
 -------- Bot API ------------
 
-type SlackEvents = "slack" :> ReqBody '[JSON] SlackEvent :> Post '[JSON] Text
+type SlackEvents = "slack" :> ReqBody '[JSON] LT.Text :> Post '[JSON] Text
 
-type SlackHandler = ReaderT (BotToken, CobSession) Handler
+type SlackHandler = ReaderT (BotToken, BotToken, CobSession) Handler
 
 slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand] -> ServerT SlackEvents SlackHandler
-slackHandler bot = \case
-    UrlVerification x -> pure (challenge x)
-    WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
+slackHandler bot body = do
+    liftIO $ print body
+    case decode @SlackEvent (TLE.encodeUtf8 body) of
+      Nothing -> pure "Couldn't decode a slack event from the body"
+      Just slackEvent -> case slackEvent of
+        UrlVerification x -> pure (challenge x)
+        WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
 
-slackBot :: (BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand]) Application
+slackBot :: (BotToken, BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand]) Application
 slackBot r = Bot (pure . serve (Proxy @SlackEvents) . hoistServer (Proxy @SlackEvents) (`runReaderT` r) . slackHandler)
 
-slackServer :: (BotToken, CobSession) -> ChatBotServer
+slackServer :: (BotToken, BotToken, CobSession) -> ChatBotServer
 slackServer = ChatBotServer . slackBot
 
 -------- API Types ----------

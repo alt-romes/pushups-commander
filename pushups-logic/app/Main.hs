@@ -60,11 +60,12 @@ adderBot = Bot $ \m ->
 main :: IO ()
 main = do
     slackToken   <- T.init <$> TIO.readFile "slack-token.secret"
+    slackSigningToken <- T.init <$> TIO.readFile "slack-signing.secret"
     discordToken <- T.init <$> TIO.readFile "discord-token.secret"
     host     <- init <$> readFile "cob-host.secret"
     cobToken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobToken
     putStrLn "Starting..."
 
-    runChatBotServers 25564 echoBot [ slackServer (slackToken, session), discordServer discordToken ]
+    runChatBotServers 25564 echoBot [ slackServer (slackToken, slackSigningToken, session), discordServer discordToken ]
 
