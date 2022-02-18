@@ -8,8 +8,6 @@
 {-# LANGUAGE GADTs #-}
 module Bots where
 
-import Data.Dynamic
-
 import Data.Functor.Identity (Identity(..))
 import Data.Profunctor (Profunctor, dimap)
 import Data.Text (Text)

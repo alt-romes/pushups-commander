@@ -10,8 +10,6 @@
 {-# LANGUAGE TypeOperators #-}
 module SlackBot where
 
-import GHC.Exts (Constraint)
-
 import qualified Data.Text.IO as TIO
 import Data.Function ((&))
 import Data.Maybe (isJust)
@@ -19,6 +17,7 @@ import Data.Functor.Identity (Identity(..))
 import Data.Text as T
 import qualified Data.Text.Lazy as LT (Text)
 import Data.ByteString (ByteString(..))
+import qualified Data.ByteString.Lazy as LB (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy.Encoding as TLE (encodeUtf8)
 
@@ -78,14 +77,18 @@ postMessage message method = do
 
 -------- Bot API ------------
 
-type SlackEvents = "slack" :> ReqBody '[JSON] LT.Text :> Post '[JSON] Text
+instance {-# OVERLAPPING #-} MimeUnrender JSON LB.ByteString where
+    mimeUnrender _ = Right
+
+
+type SlackEvents = "slack" :> ReqBody '[JSON] LB.ByteString :> Post '[JSON] Text
 
 type SlackHandler = ReaderT (BotToken, BotToken, CobSession) Handler
 
 slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand] -> ServerT SlackEvents SlackHandler
 slackHandler bot body = do
     liftIO $ print body
-    case decode @SlackEvent (TLE.encodeUtf8 body) of
+    case decode @SlackEvent body of
       Nothing -> pure "Couldn't decode a slack event from the body"
       Just slackEvent -> case slackEvent of
         UrlVerification x -> pure (challenge x)
