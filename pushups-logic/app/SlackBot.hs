@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeOperators #-}
 module SlackBot where
 
+import Text.Hex (decodeHex, strictByteString)
 import Crypto.Hash (digestFromByteString)
 import Crypto.MAC.HMAC (hmac, HMAC(..))
 import Crypto.Hash.Algorithms (SHA256)
@@ -83,9 +84,8 @@ instance {-# OVERLAPPING #-} MimeUnrender JSON LB.ByteString where
     mimeUnrender _ = Right
 
 instance FromHttpApiData (HMAC SHA256) where
-    -- parseQueryParam = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . encodeUtf8 . T.drop 3
-    parseQueryParam = undefined
-    parseHeader = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . BS.drop 3
+    parseQueryParam = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . (digestFromByteString <=< (decodeHex . T.drop 3))
+    -- parseHeader = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . BS.drop 3
 
 type SlackEvents = "slack"
                  :> Header "X-Slack-Request-Timestamp" Text
@@ -98,7 +98,7 @@ type SlackHandler = ReaderT (BotToken, BotToken, CobSession) Handler
 slackHandler :: Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand] -> ServerT SlackEvents SlackHandler
 slackHandler bot (Just timestamp) (Just slackSignature) rawbody = do
     signingSecret <- asks (\(_,s,_) -> encodeUtf8 s)
-    let localSignature = hmac signingSecret ("v0:" <> encodeUtf8 timestamp <> ":" <> lazyToStrict rawbody) :: HMAC SHA256
+    let localSignature = hmac signingSecret ("v0:" <> encodeUtf8 timestamp <> ":" <> strictByteString rawbody) :: HMAC SHA256
     if localSignature /= slackSignature
       then pure "Signatures do not match!"
       else case decode @SlackEvent rawbody of
@@ -106,8 +106,6 @@ slackHandler bot (Just timestamp) (Just slackSignature) rawbody = do
         Just slackEvent -> case slackEvent of
           UrlVerification x -> pure (challenge x)
           WrappedEvent m@(SlackEventWrapper Message{} _) -> runChatBot bot m $> ""
-    where
-        lazyToStrict = B8.concat . LB.toChunks
 slackHandler bot _ _ rawbody = pure "Required request headers (X-Slack-...) not provided"
 
 slackBot :: (BotToken, BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand]) Application
