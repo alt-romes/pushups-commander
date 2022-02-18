@@ -89,7 +89,7 @@ slackHandler bot = \case
 slackBot :: (BotToken, CobSession) -> Bot Identity (Bot SlackHandler (SlackEventWrapper Message) [ChatBotCommand]) Application
 slackBot r = Bot (pure . serve (Proxy @SlackEvents) . hoistServer (Proxy @SlackEvents) (`runReaderT` r) . slackHandler)
 
-slackServer :: (BotToken, CobSession) -> ChatBotServer AnyM
+slackServer :: (BotToken, CobSession) -> ChatBotServer
 slackServer = ChatBotServer . slackBot
 
 -------- API Types ----------

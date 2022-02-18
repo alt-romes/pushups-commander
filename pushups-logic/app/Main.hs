@@ -43,13 +43,13 @@ type CobBot m i o = Bot (CobT m) i o
 runCobBot :: Monad m => CobSession -> CobBot m i [ChatBotCommand] -> Bot m i [ChatBotCommand]
 runCobBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCobT session)
 
-echoBot :: ChatBot AnyM
+echoBot :: ChatBot
 echoBot = ChatBot $ Bot handler
     where
     handler m =
         if isFromBot m
-           then pure []
-           else pure [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)]
+           then return []
+           else return [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)]
 
 adderBot :: forall m i. (Monad m, ChatBotMessage i) => Bot m i [ChatBotCommand]
 adderBot = Bot $ \m ->

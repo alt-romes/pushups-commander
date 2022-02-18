@@ -63,7 +63,7 @@ discordBot discordToken = Bot $ \bot -> do
          , discordOnLog = TIO.putStrLn
          , discordForkThreadForEvents = True }
 
-discordServer :: BotToken -> ChatBotServer AnyM
+discordServer :: BotToken -> ChatBotServer
 discordServer = ChatBotServer . discordBot
 
 instance Runnable RunDiscordOpts where
