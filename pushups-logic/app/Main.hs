@@ -69,7 +69,7 @@ main = do
     cobToken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobToken
     putStrLn "Starting..."
-    runChatBotServers 25564 baBot [ slackServer (slackToken, slackSigningToken, session), discordServer discordToken ]
+    runChatBotServers 25564 baBot [ slackServer (slackToken, slackSigningToken, tlsmanager session), discordServer discordToken ]
 
 
 
