@@ -85,7 +85,6 @@ instance {-# OVERLAPPING #-} MimeUnrender JSON LB.ByteString where
 
 instance FromHttpApiData (HMAC SHA256) where
     parseQueryParam = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . (digestFromByteString <=< (decodeHex . T.drop 3))
-    -- parseHeader = maybe (Left "Signature is cryptographically incorrect.") (Right . HMAC) . digestFromByteString . BS.drop 3
 
 type SlackEvents = "slack"
                  :> Header "X-Slack-Request-Timestamp" Text

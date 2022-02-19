@@ -51,11 +51,14 @@ echoBot = ChatBot $ Bot handler
            then return []
            else return [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)]
 
-adderBot :: forall m i. (Monad m, ChatBotMessage i) => Bot m i [ChatBotCommand]
-adderBot = Bot $ \m ->
+adderBot :: ChatBot
+adderBot = ChatBot $ Bot $ \m ->
     let str2Int = read @Int . T.unpack
         int2Str = T.pack . show @Int in
     if isFromBot m then pure [] else pure [ReplyWith ("Echo: " <> (int2Str . (+1) . str2Int . getContent) m)]
+
+
+----
 
 main :: IO ()
 main = do
@@ -66,6 +69,16 @@ main = do
     cobToken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobToken
     putStrLn "Starting..."
+    runChatBotServers 25564 baBot [ slackServer (slackToken, slackSigningToken, session), discordServer discordToken ]
 
-    runChatBotServers 25564 echoBot [ slackServer (slackToken, slackSigningToken, session), discordServer discordToken ]
+
+
+baBot :: ChatBot
+baBot = ChatBot (Bot handleMessage)
+
+
+handleMessage msg =
+
+    if isFromBot msg then return []
+                     else return [ ReplyWith "ba" ]
 
