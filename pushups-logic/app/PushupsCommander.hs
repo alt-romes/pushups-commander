@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -28,9 +29,10 @@ import Bots
 ----- Main -----
 
 type Amount = Int
-data Exercise = Pushups | Abs | Squats | Kilometers | Unknown Text deriving (Show)
-data Command = AddExercise Amount Exercise
-             | RmExercise Amount Exercise
+data Exercise = Pushups | Abs | Squats | Kilometers deriving (Show)
+data ServerPlan = Small | Medium | Large | Huge deriving (Show)
+data Command = AddExercise Amount Exercise Text
+             | RmExercise Amount Exercise Text
              -- | QueryDatabase Target Exercise
              | Imperative ImperativeCommand
              | Ok
@@ -44,15 +46,15 @@ data Target = Today | All | Server deriving (Show, Eq)
 pushupsCommander :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommand]
 pushupsCommander = Bot handler where
     handler m = do
-        command <- CobT (parseMsg (getContent m))
+        command <- parseMsg (getContent m)
         log command
         case command of
-            AddExercise amount exercise -> do
-                addExercise amount exercise
+            AddExercise amount exercise obs -> do
+                addExercise amount exercise obs
                 return [ ReactWith "muscle" ]
 
-            RmExercise amount exercise  -> do
-                addExercise (-amount) exercise
+            RmExercise amount exercise obs -> do
+                addExercise (-amount) exercise obs
                 return [ ReactWith "thumbsup" ]
 
             Imperative imp -> case imp of 
@@ -64,76 +66,79 @@ pushupsCommander = Bot handler where
                     return [ ReplyWith "Successfully activated!" ]
 
                 SetMasterUsername newName -> do
-                    [serverUser] <- rmDefinitionSearch_ ("server_username:" <> masterUserId <> " server_reference:" <> serverId) 
-                    rmUpdateInstances (serverUser^.userId) (masterUsername .~ newName)
+                    rmUpdateServerUser (masterUsername .~ newName)
                     return [ ReactWith "thumbsup" ]
 
                 SetProfilePicture url -> do
-                    [serverUser] <- rmDefinitionSearch_ ("server_username:" <> masterUserId <> " server_reference:" <> serverId) 
-                    rmUpdateInstances (serverUser^.userId) (profilePicture .~ url)
+                    rmUpdateServerUser (profilePicture ?~ url)
                     return [ ReactWith "thumbsup" ]
 
             Ok -> return [ ]
             where
-                addExercise :: MonadIO m => Amount -> Exercise -> CobT m (Ref ExercisesRecord)
-                addExercise amount exercise = do
+                addExercise :: MonadIO m => Amount -> Exercise -> Text -> CobT m (Ref ExercisesRecord)
+                addExercise amount exercise obs = do
                     (serverUserId, _) <- rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> masterUserId) createServerUser
-                    rmAddInstance (ExercisesRecord serverUserId amount exercise)
-
+                    rmAddInstance (ExercisesRecord serverUserId amount exercise (Just obs))
+                
+                -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
                 createServerUser :: MonadIO m => CobT m ServerUsersRecord
-                createServerUser = do -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
-                    (serverId, ServersRecord server _ _) <- rmDefinitionSearch ("server:" <> serverId) >>=
-                                                            (/// throwError "Server hasn't been activated yet!") . listToMaybe
-                    (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> masterUserId) (UsersRecord masterUserId "")
-                    return (ServerUsersRecord newUserId serverId masterUserId)
+                createServerUser = do
+                    print ("Creating new user with server username " <> masterUserId <> "!") & liftIO
+                    (serverRef, ServersRecord server _ _ serverPlan) <- (listToMaybe <$> rmDefinitionSearch ("server:" <> serverId)) //// throwError "Server hasn't been activated yet!"
+                    amount :: Count ServerUsersRecord <- rmDefinitionCount ("server:" <> show serverRef)
+                    case serverPlan of
+                        Small  | amount >= 25  -> throwError "Server has reached its max user capacity (25) for its current plan (small)"
+                        Medium | amount >= 60  -> throwError "Server has reached its max user capacity (60) for its current plan (medium)"
+                        Large  | amount >= 150 -> throwError "Server has reached its max user capacity (150) for its current plan (large)"
+                        _ -> return ()
+                    (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> masterUserId) (UsersRecord masterUserId Nothing)
+                    return (ServerUsersRecord newUserId serverRef masterUserId)
 
                 log = liftIO . TIO.putStrLn . pack . show
                 serverId = getServerId m
                 masterUserId = getUserId m
+                rmUpdateServerUser = rmUpdateInstancesWithMakeQuery ("server_username:" <> masterUserId <> " server_reference:" <> serverId) (^.userId)
 
-type ParseError = String
-
-parseMsg :: Monad m => Text -> ExceptT ParseError m Command
+parseMsg :: Monad m => Text -> CobT m Command
 parseMsg m = case uncons $ whitespace m of
-        Just ('+', m') -> parseAmountAndExercise m' <&> uncurry AddExercise
-        Just ('-', m') -> parseAmountAndExercise m' <&> uncurry RmExercise
+        Just ('+', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 AddExercise)
+        Just ('-', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 RmExercise)
         Just ('!', m') -> parseImperativeCommand m' <&> maybe Ok Imperative
-        _     -> return Ok
+        _              -> return Ok
         -- Just ('?', m') -> parseTargetAndExercise m' <&> maybe Ok (uncurry QueryDatabase)
 
     where
-    parseImperativeCommand :: Monad m => Text -> ExceptT ParseError m (Maybe ImperativeCommand)
+    parseImperativeCommand :: Monad m => Text -> CobT m (Maybe ImperativeCommand)
     parseImperativeCommand s = case takeWord s of
         ("activate", s')      -> Just . ActivateCommander <$> parseNonEmptyWord s'
         ("setName", s')       -> Just . SetMasterUsername <$> parseNonEmptyWord s'
         ("setProfilePic", s') -> Just . SetProfilePicture <$> parseNonEmptyWord s'
         _ -> return Nothing
 
-    parseNonEmptyWord :: Monad m => Text -> ExceptT ParseError m Text
+    parseNonEmptyWord :: Monad m => Text -> CobT m Text
     parseNonEmptyWord s = case takeWord s of
-        ("", _) -> throwE "Parser failed expecting a word"
+        ("", _) -> throwError "Parser failed expecting a word"
         (w, _) -> return w
 
-    parseAmount :: Monad m => Text -> ExceptT ParseError m (Amount, Text)
+    parseAmount :: Monad m => Text -> CobT m (Maybe (Amount, Text))
     parseAmount s = do
         let (a, s') = T.span isDigit $ whitespace s
-        amount <- except $ readEither $ unpack a -- TODO: better error message
-        return (amount, s')
+        return ((, s') <$> readMaybe (unpack a))
 
-    parseExercise :: Text -> Exercise
+    parseExercise :: Monad m => Text -> CobT m (Exercise, Text)
     parseExercise s = case takeWord s of
-        ("", _)           -> Pushups
-        ("p", _)          -> Pushups
-        ("pushups", _)    -> Pushups
-        ("a", _)          -> Abs
-        ("abs", _)        -> Abs
-        ("s", _)          -> Squats
-        ("squats", _)     -> Squats
-        ("km", _)         -> Kilometers
-        ("kilometers", _) -> Kilometers
-        _                 -> Unknown $ whitespace s
+        (""          , s') -> return (Pushups, s')
+        ("p"         , s') -> return (Pushups, s')
+        ("pushups"   , s') -> return (Pushups, s')
+        ("a"         , s') -> return (Abs, s')
+        ("abs"       , s') -> return (Abs, s')
+        ("s"         , s') -> return (Squats, s')
+        ("squats"    , s') -> return (Squats, s')
+        ("km"        , s') -> return (Kilometers, s')
+        ("kilometers", s') -> return (Kilometers, s')
+        _                  -> throwError "Exercise not recognized"
 
-    parseTarget :: Monad m => Text -> ExceptT ParseError m (Maybe (Target, Text))
+    parseTarget :: Monad m => Text -> CobT m (Maybe (Target, Text))
     parseTarget s = case takeWord s of
         ("t", s')      -> return $ Just (Today, s')
         ("today", s')  -> return $ Just (Today, s')
@@ -146,12 +151,20 @@ parseMsg m = case uncons $ whitespace m of
     whitespace :: Text -> Text
     whitespace = T.dropWhile (== ' ')
 
-    parseAmountAndExercise :: Monad m => Text -> ExceptT ParseError m (Amount, Exercise)
-    parseAmountAndExercise s = second parseExercise <$> parseAmount s
-
-    parseTargetAndExercise :: Monad m => Text -> ExceptT ParseError m (Maybe (Target, Exercise))
-    parseTargetAndExercise s = (second parseExercise <$>) <$> parseTarget s
+    parseAmountAndExercise :: Monad m => Text -> CobT m (Maybe (Amount, Exercise, Text))
+    parseAmountAndExercise s = do
+        mAmount <- parseAmount s
+        case mAmount of
+          Nothing -> return Nothing
+          Just (a, s') -> do
+            (e, s'') <- parseExercise s'
+            return (Just (a, e, whitespace s'')) -- Return amount, exercise, and observations
 
     takeWord :: Text -> (Text, Text)
     takeWord = T.span (/= ' ') . whitespace
+
+    uncurry3 f (a, b, c) = f a b c
+
+--     parseTargetAndExercise :: Monad m => Text -> ExceptT ParseError m (Maybe (Target, Exercise))
+--     parseTargetAndExercise s = (second parseExercise <$>) <$> parseTarget s
 

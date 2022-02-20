@@ -8,7 +8,7 @@ import Data.Text
 
 import Data.Aeson
 
-import {-# SOURCE #-} PushupsCommander (Amount, Exercise(..))
+import {-# SOURCE #-} PushupsCommander (Amount, Exercise(..), ServerPlan(..))
 
 import Cob
 import Cob.RecordM
@@ -24,6 +24,15 @@ instance FromJSON Exercise where
           "kilometers" -> return Kilometers
           _ -> fail "Error parsing exercise from JSON"
 
+instance ToJSON ServerPlan where
+    toJSON = toJSON . toLower . pack . show
+instance FromJSON ServerPlan where
+    parseJSON = withText "Server Plan" $ \case
+          "small" -> return Small
+          "medium" -> return Medium
+          "large" -> return Large
+          "huge" -> return Huge
+          _ -> fail "Error parsing server plan from JSON"
 
 type Owner = Text
 type ActivationCode = Text
@@ -35,7 +44,7 @@ type Id = Int
 
 data UsersRecord = UsersRecord
     { _masterUsername :: MasterUsername
-    , _profilePicture :: ProfilePicture }
+    , _profilePicture :: Maybe ProfilePicture }
 mkRecord ''UsersRecord "ROMES Pushups Users" ["Master Username", "Profile Picture"]
 makeLenses ''UsersRecord
 
@@ -44,8 +53,9 @@ data ServersRecord = ServersRecord
     { _serverIdentifier :: Maybe ServerIdentifier
     , _activationCode   :: ActivationCode
     , _owner            :: Owner
+    , _serverPlan       :: ServerPlan
     } deriving (Show)
-mkRecord ''ServersRecord "ROMES Pushups Servers" ["Server", "Activation Code", "Owner"]
+mkRecord ''ServersRecord "ROMES Pushups Servers" ["Server", "Activation Code", "Owner", "Server Plan"]
 makeLenses ''ServersRecord
 
 
@@ -61,7 +71,8 @@ makeLenses ''ServerUsersRecord
 data ExercisesRecord = ExercisesRecord
     { _serverUserId :: Ref ServerUsersRecord
     , _amount       :: Amount
-    , _exercise     :: Exercise }
-mkRecord ''ExercisesRecord "ROMES Pushups Exercises" ["Server Username", "Amount", "Exercise Type"]
+    , _exercise     :: Exercise
+    , _obs          :: Maybe Text }
+mkRecord ''ExercisesRecord "ROMES Pushups Exercises" ["Server Username", "Amount", "Exercise Type", "Obs"]
 makeLenses ''ExercisesRecord
 
