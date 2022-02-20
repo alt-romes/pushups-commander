@@ -36,49 +36,54 @@ cobClassf = Bot $ \m -> do
     classf :: [Classficação] <- rmDefinitionSearch_ (getContent m)
     pure [ReplyWith (T.pack (show classf))]
 
-----
-
 type CobBot m i o = Bot (CobT m) i o
+type CobChatBot = forall m i. (MonadIO m, ChatBotMessage i) => CobBot m i [ChatBotCommand]
 
 runCobBot :: Monad m => CobSession -> CobBot m i [ChatBotCommand] -> Bot m i [ChatBotCommand]
 runCobBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCobT session)
 
 echoBot :: ChatBot
-echoBot = ChatBot $ Bot handler
-    where
-    handler m =
-        if isFromBot m
-           then return []
-           else return [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)]
+echoBot = Bot (\m -> return [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)])
 
 adderBot :: ChatBot
-adderBot = ChatBot $ Bot $ \m ->
+adderBot = Bot $ \m ->
     let str2Int = read @Int . T.unpack
         int2Str = T.pack . show @Int in
-    if isFromBot m then pure [] else pure [ReplyWith ("Echo: " <> (int2Str . (+1) . str2Int . getContent) m)]
+    return [ReplyWith ("Echo: " <> (int2Str . (+1) . str2Int . getContent) m)]
 
+baBot :: ChatBot
+baBot = Bot (const (return [ ReplyWith "ba" ]))
 
-----
+muscle :: ChatBot
+muscle = Bot (const (return [ ReactWith "muscle" ]))
+
+echo :: T.Text -> ChatBot
+echo echoMsg = Bot (\msg -> return [ ReplyWith (echoMsg <> ": " <> getContent msg) ])
+
+data PushupsRecord = PushupsRecord String Int
+instance Show PushupsRecord where show (PushupsRecord n i) = n <> ": " <> show i
+mkRecord ''PushupsRecord "ROMES Pushups Commander" ["Name", "Amount"]
+
+pushups :: CobChatBot
+pushups = Bot $ \msg -> do
+    ps :: [PushupsRecord] <- rmDefinitionSearch_ (getUserId msg)
+    return [ReplyWith (T.pack $ show ps)]
 
 main :: IO ()
 main = do
-    slackToken   <- T.init <$> TIO.readFile "slack-token.secret"
+    slackToken <- T.init <$> TIO.readFile "slack-token.secret"
     slackSigningToken <- T.init <$> TIO.readFile "slack-signing.secret"
     discordToken <- T.init <$> TIO.readFile "discord-token.secret"
     host     <- init <$> readFile "cob-host.secret"
     cobToken <- init <$> readFile "cob-token.secret"
     session  <- makeSession host cobToken
+
     putStrLn "Starting..."
-    runChatBotServers 25564 baBot [ slackServer (slackToken, slackSigningToken, tlsmanager session), discordServer discordToken ]
 
+    runChatBotServers 25564
+        
+        (muscle <> echo "Gil disse" <> echo "Rodrigo disse")
 
-
-baBot :: ChatBot
-baBot = ChatBot (Bot handleMessage)
-
-
-handleMessage msg =
-
-    if isFromBot msg then return []
-                     else return [ ReplyWith "ba" ]
+        [ slackServer (slackToken, slackSigningToken, tlsmanager session)
+        , discordServer discordToken ]
 
