@@ -28,13 +28,15 @@ instance FromJSON Exercise where
 type Owner = Text
 type ActivationCode = Text
 type MasterUsername = Text
+type ProfilePicture = Text
 type ServerIdentifier = Text
 type ServerUsername = Text
 type Id = Int
 
-newtype UsersRecord = UsersRecord
-    { _masterUsername :: MasterUsername }
-mkRecord ''UsersRecord "ROMES Pushups Users" ["Master Username"]
+data UsersRecord = UsersRecord
+    { _masterUsername :: MasterUsername
+    , _profilePicture :: ProfilePicture }
+mkRecord ''UsersRecord "ROMES Pushups Users" ["Master Username", "Profile Picture"]
 makeLenses ''UsersRecord
 
 
