@@ -40,9 +40,6 @@ data ImperativeCommand = ActivateCommander Text
                         deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsBot :: CobSession -> ChatBot
-pushupsBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCobT session) pushupsCommander
-
 pushupsCommander :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommand]
 pushupsCommander = Bot handler where
     handler m = do
