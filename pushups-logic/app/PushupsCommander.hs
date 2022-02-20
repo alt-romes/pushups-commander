@@ -41,15 +41,12 @@ data ImperativeCommand = ActivateCommander Text
 data Target = Today | All | Server deriving (Show, Eq)
 
 pushupsBot :: CobSession -> ChatBot
-pushupsBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCobT session) pushupsCobBot
+pushupsBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCobT session) pushupsCommander
 
-pushupsCobBot :: (MonadIO m, ChatBotMessage i) => Bot (CobT m) i [ChatBotCommand]
-pushupsCobBot = dimap (\m -> ((CobT . parseMsg . getContent) m, getServerId m, getUserId m)) id pushupsCommander
-
-pushupsCommander :: MonadIO m => Bot (CobT m) (CobT m Command, ServerIdentifier, MasterUsername) [ChatBotCommand]
+pushupsCommander :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommand]
 pushupsCommander = Bot handler where
-    handler (parser, serverId, masterUserId) = do
-        command <- parser
+    handler m = do
+        command <- CobT (parseMsg (getContent m))
         log command
         case command of
             AddExercise amount exercise -> do
@@ -87,7 +84,8 @@ pushupsCommander = Bot handler where
                             return (ServerUsersRecord newUserId serverId masterUserId)
 
                 log = liftIO . TIO.putStrLn . pack . show
-
+                serverId = getServerId m
+                masterUserId = getUserId m
 
 type ParseError = String
 
