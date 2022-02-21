@@ -21,25 +21,25 @@ export default defineComponent({
     <div class="level-item has-text-centered">
       <div>
         <p class="heading">Pushups</p>
-        <p class="title">{{ data.pushups }}</p>
+        <p class="title">{{ data.pushups.value }}</p>
       </div>
     </div>
     <div class="level-item has-text-centered">
       <div>
         <p class="heading">Abs</p>
-        <p class="title">{{ data.abs }}</p>
+        <p class="title">{{ data.abs.value }}</p>
       </div>
     </div>
     <div class="level-item has-text-centered">
       <div>
         <p class="heading">Squats</p>
-        <p class="title">{{ data.squats }}</p>
+        <p class="title">{{ data.squats.value }}</p>
       </div>
     </div>
     <div class="level-item has-text-centered">
       <div>
         <p class="heading">Kilometers</p>
-        <p class="title">{{ data.kilometers }}</p>
+        <p class="title">{{ data.kilometers.value }}</p>
       </div>
     </div>
   </nav>
