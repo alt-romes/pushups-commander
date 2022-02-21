@@ -60,8 +60,8 @@ pushupsCommander = Bot handler where
             Imperative imp -> case imp of 
                 ActivateCommander code -> do
                     let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
-                    serversRecords         <- rmDefinitionSearch ("activation_code:" <> code)
-                    (id, activationRecord) <- find hasActivationCode serversRecords /// throwError "Invalid activation code!" 
+                    serversRecords <- rmDefinitionSearch ("activation_code:" <> code)
+                    (id, _)        <- find hasActivationCode serversRecords /// throwError "Invalid activation code!" 
                     rmUpdateInstances id (serverIdentifier ?~ serverId)
                     return [ ReplyWith "Successfully activated!" ]
 
@@ -82,28 +82,37 @@ pushupsCommander = Bot handler where
                 (serverUserId, _) <- getOrCreateServerUser
                 rmAddInstance (ExercisesRecord serverUserId amount exercise (Just obs))
 
+            -- The ServerUsers record in this context will only be created by
+            -- addExercise if needed. If it isn't needed, the creation code won't run
+            -- (see rmGetOrAddInstanceM)
             getOrCreateServerUser :: MonadIO m => CobT m (Ref ServerUsersRecord, ServerUsersRecord)
-            getOrCreateServerUser = rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) createServerUser
-            
-            -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
-            createServerUser :: MonadIO m => CobT m ServerUsersRecord
-            createServerUser = do
-                (serverRef, ServersRecord server _ _ serverPlan) <- (listToMaybe <$> rmDefinitionSearch ("server:" <> serverId))
-                                                                    //// throwError "Server hasn't been activated yet!"
+            getOrCreateServerUser = rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) $ do
+
+                -- Only create server user if server has been activated
+                serversRecords <- rmDefinitionSearch ("server:" <> serverId)
+                (serverRef, ServersRecord _ _ _ serverPlan) <- safeHead serversRecords /// throwError "Server hasn't been activated yet!"
+
+                -- Only create server user if server hasn't exceeded the plan's user limit
                 amount :: Count ServerUsersRecord <- rmDefinitionCount ("server:" <> show serverRef)
-                case serverPlan of
-                    Small  | amount >= 25  -> throwError "Server has reached its max user capacity (25) for its current plan (small)"
-                    Medium | amount >= 60  -> throwError "Server has reached its max user capacity (60) for its current plan (medium)"
-                    Large  | amount >= 150 -> throwError "Server has reached its max user capacity (150) for its current plan (large)"
-                    _ -> return ()
+                when (amount `exceeds` serverPlan) (throwError $ "Server has reached its max user capacity for its current plan (" <> show serverPlan <> ")")
+
+                -- Create a new server user and a new master user if one doesn't exist yet
                 (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> serverUserId) (UsersRecord serverUserId Nothing)
                 return (ServerUsersRecord newUserId serverRef serverUserId)
 
+            amount `exceeds` serverPlan = case serverPlan of
+                Small  | amount >= 25  -> True
+                Medium | amount >= 60  -> True
+                Large  | amount >= 150 -> True
+                _                      -> False
             log = liftIO . TIO.putStrLn . pack . show
             serverId = getServerId m
             serverUserId = getUserId m
+            safeHead = listToMaybe
 
 
+
+-- TODO: Test parser extensively?
 parseMsg :: Monad m => Text -> CobT m Command
 parseMsg m = case uncons $ whitespace m of
         Just ('+', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 AddExercise)
