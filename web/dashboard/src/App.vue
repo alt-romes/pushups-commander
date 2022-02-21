@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue'
-import { definitionCount } from '@cob/dashboard-info'
+import { definitionCount, fieldSum } from '@cob/dashboard-info'
 
 import GroupAllActivity from './components/GroupAllActivity.vue'
 import GroupRecentActivity from './components/GroupRecentActivity.vue'
@@ -12,7 +12,7 @@ export default defineComponent({
   data() {
     return {
       allActivity: {
-        pushups: definitionCount("ROMES Pushups Exercises", "exercise_type:pushups"),
+        pushups: fieldSum(35, "amount", "exercise_type:pushups"),
         abs: definitionCount("ROMES Pushups Exercises"),
         squats: definitionCount("ROMES Pushups Exercises"),
         kilometers: definitionCount("ROMES Pushups Exercises")
