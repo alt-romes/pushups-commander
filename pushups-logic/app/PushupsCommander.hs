@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types #-}
@@ -20,6 +21,7 @@ import Data.Text.IO as TIO
 import Control.Monad.Trans
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except
+import Control.Concurrent (threadDelay)
 
 import Cob
 import Cob.RecordM
@@ -59,19 +61,37 @@ pushupsCommander = Bot handler where
 
             Imperative imp -> case imp of 
                 ActivateCommander code -> do
-                    let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
+
                     serversRecords <- rmDefinitionSearch ("activation_code:" <> code)
+
+                    -- Validate code
+                    let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
                     (id, _)        <- find hasActivationCode serversRecords /// throwError "Invalid activation code!" 
+
+                    -- Activate server
                     rmUpdateInstances id (serverIdentifier ?~ serverId)
                     return [ ReplyWith "Successfully activated!" ]
 
                 SetMasterUsername newName -> do
+
                     (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
+
+                    -- Updated name can't already be in use
+                    existingNames <- rmDefinitionSearch_ @UsersRecord ("master_username:" <> newName)
+                    unless (null existingNames) $
+                        throwError ("Couldn't set username to " <> show newName <> " because that username is already in use.")
+
+                    -- Update name
                     rmUpdateInstances userId (masterUsername .~ newName)
                     return [ ReactWith "thumbsup" ]
 
                 SetProfilePicture url -> do
-                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
+
+                    (_, s@(ServerUsersRecord userId _ _)) <- getOrCreateServerUser
+                    print s & liftIO
+                    threadDelay 1000000 & liftIO -- TODO: Bug if update is done too soon (user not found...)
+
+                    -- Update profile picture url
                     rmUpdateInstances userId (profilePicture ?~ url)
                     return [ ReactWith "thumbsup" ]
 
@@ -93,18 +113,20 @@ pushupsCommander = Bot handler where
                 (serverRef, ServersRecord _ _ _ serverPlan) <- safeHead serversRecords /// throwError "Server hasn't been activated yet!"
 
                 -- Only create server user if server hasn't exceeded the plan's user limit
-                amount :: Count ServerUsersRecord <- rmDefinitionCount ("server:" <> show serverRef)
-                when (amount `exceeds` serverPlan) (throwError $ "Server has reached its max user capacity for its current plan (" <> show serverPlan <> ")")
+                amount <- rmDefinitionCount @ServerUsersRecord ("server:" <> show serverRef)
+                when (amount `exceeds` serverPlan) $
+                    throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map toLower . show) serverPlan <> ")")
 
                 -- Create a new server user and a new master user if one doesn't exist yet
                 (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> serverUserId) (UsersRecord serverUserId Nothing)
                 return (ServerUsersRecord newUserId serverRef serverUserId)
 
-            amount `exceeds` serverPlan = case serverPlan of
-                Small  | amount >= 25  -> True
-                Medium | amount >= 60  -> True
-                Large  | amount >= 150 -> True
-                _                      -> False
+            amount `exceeds` serverPlan = amount >= capacity serverPlan
+            capacity serverPlan = case serverPlan of
+                Small  -> 25
+                Medium -> 60
+                Large  -> 200
+                Huge   -> 1000
             log = liftIO . TIO.putStrLn . pack . show
             serverId = getServerId m
             serverUserId = getUserId m
@@ -112,7 +134,6 @@ pushupsCommander = Bot handler where
 
 
 
--- TODO: Test parser extensively?
 parseMsg :: Monad m => Text -> CobT m Command
 parseMsg m = case uncons $ whitespace m of
         Just ('+', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 AddExercise)
