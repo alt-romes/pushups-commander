@@ -17,8 +17,9 @@ import Cob
 import Cob.RecordM
 import Cob.RecordM.TH
 import Bots
-import SlackBot
-import DiscordBot
+import Bots.SlackBot
+import Bots.DiscordBot
+import Bots.HaskelineBot
 import PushupsCommander
 
 ---- Classificações
@@ -86,5 +87,6 @@ main = do
         (runCobBot session pushupsCommander)
 
         [ slackServer (slackToken, slackSigningToken, tlsmanager session)
-        , discordServer discordToken ]
+        , discordServer discordToken
+        , haskelineServer ]
 

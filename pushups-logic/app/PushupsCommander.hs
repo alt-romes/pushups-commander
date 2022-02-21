@@ -66,38 +66,43 @@ pushupsCommander = Bot handler where
                     return [ ReplyWith "Successfully activated!" ]
 
                 SetMasterUsername newName -> do
-                    rmUpdateServerUser (masterUsername .~ newName)
+                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
+                    rmUpdateInstances userId (masterUsername .~ newName)
                     return [ ReactWith "thumbsup" ]
 
                 SetProfilePicture url -> do
-                    rmUpdateServerUser (profilePicture ?~ url)
+                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
+                    rmUpdateInstances userId (profilePicture ?~ url)
                     return [ ReactWith "thumbsup" ]
 
             Ok -> return [ ]
-            where
-                addExercise :: MonadIO m => Amount -> Exercise -> Text -> CobT m (Ref ExercisesRecord)
-                addExercise amount exercise obs = do
-                    (serverUserId, _) <- rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> masterUserId) createServerUser
-                    rmAddInstance (ExercisesRecord serverUserId amount exercise (Just obs))
-                
-                -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
-                createServerUser :: MonadIO m => CobT m ServerUsersRecord
-                createServerUser = do
-                    print ("Creating new user with server username " <> masterUserId <> "!") & liftIO
-                    (serverRef, ServersRecord server _ _ serverPlan) <- (listToMaybe <$> rmDefinitionSearch ("server:" <> serverId)) //// throwError "Server hasn't been activated yet!"
-                    amount :: Count ServerUsersRecord <- rmDefinitionCount ("server:" <> show serverRef)
-                    case serverPlan of
-                        Small  | amount >= 25  -> throwError "Server has reached its max user capacity (25) for its current plan (small)"
-                        Medium | amount >= 60  -> throwError "Server has reached its max user capacity (60) for its current plan (medium)"
-                        Large  | amount >= 150 -> throwError "Server has reached its max user capacity (150) for its current plan (large)"
-                        _ -> return ()
-                    (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> masterUserId) (UsersRecord masterUserId Nothing)
-                    return (ServerUsersRecord newUserId serverRef masterUserId)
+        where
+            addExercise :: MonadIO m => Amount -> Exercise -> Text -> CobT m (Ref ExercisesRecord)
+            addExercise amount exercise obs = do
+                (serverUserId, _) <- getOrCreateServerUser
+                rmAddInstance (ExercisesRecord serverUserId amount exercise (Just obs))
 
-                log = liftIO . TIO.putStrLn . pack . show
-                serverId = getServerId m
-                masterUserId = getUserId m
-                rmUpdateServerUser = rmUpdateInstancesWithMakeQuery ("server_username:" <> masterUserId <> " server_reference:" <> serverId) (^.userId)
+            getOrCreateServerUser :: MonadIO m => CobT m (Ref ServerUsersRecord, ServerUsersRecord)
+            getOrCreateServerUser = rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) createServerUser
+            
+            -- The ServerUsers record in this context will only be created by addExercise if needed. If it isn't needed, this code won't run (see rmGetOrAddInstanceM)
+            createServerUser :: MonadIO m => CobT m ServerUsersRecord
+            createServerUser = do
+                (serverRef, ServersRecord server _ _ serverPlan) <- (listToMaybe <$> rmDefinitionSearch ("server:" <> serverId))
+                                                                    //// throwError "Server hasn't been activated yet!"
+                amount :: Count ServerUsersRecord <- rmDefinitionCount ("server:" <> show serverRef)
+                case serverPlan of
+                    Small  | amount >= 25  -> throwError "Server has reached its max user capacity (25) for its current plan (small)"
+                    Medium | amount >= 60  -> throwError "Server has reached its max user capacity (60) for its current plan (medium)"
+                    Large  | amount >= 150 -> throwError "Server has reached its max user capacity (150) for its current plan (large)"
+                    _ -> return ()
+                (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> serverUserId) (UsersRecord serverUserId Nothing)
+                return (ServerUsersRecord newUserId serverRef serverUserId)
+
+            log = liftIO . TIO.putStrLn . pack . show
+            serverId = getServerId m
+            serverUserId = getUserId m
+
 
 parseMsg :: Monad m => Text -> CobT m Command
 parseMsg m = case uncons $ whitespace m of
