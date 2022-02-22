@@ -84,7 +84,7 @@ main = do
     runChatBotServers 25564
         
         -- (muscle <> echo "Gil disse" <> echo "Rodrigo disse")
-        (runCobBot session pushupsCommander)
+        (runCobBot session pushupsBot)
 
         [ slackServer (slackToken, slackSigningToken, tlsmanager session)
         , discordServer discordToken

@@ -47,13 +47,22 @@ data Command = AddExercise Amount Exercise Text
 data ImperativeCommand = ActivateCommander Text
                        | SetMasterUsername Text
                        | SetProfilePicture Text
+                       | LinkMasterUsername Text
+                       | GetLinkingCode
                        deriving (Show)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsCommander :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommand]
+pushupsBot :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommand]
+pushupsBot = pushupsCommander . processMessageBot
+
+processMessageBot :: (MonadIO m, ChatBotMessage i) => Bot (CobT m) i (Command, ServerIdentifier, ServerUsername)
+processMessageBot = Bot $ \m -> do
+    command <- either throwError return (runExcept (parseMsg (getContent m)))
+    return (command, getServerId m, getUserId m)
+
+pushupsCommander :: MonadIO m => Bot (CobT m) (Command, ServerIdentifier, ServerUsername) [ChatBotCommand]
 pushupsCommander = Bot handler where
-    handler m = do
-        command <- parseMsg (getContent m)
+    handler (command, serverId, serverUserId) = do
         log command
         case command of
             AddExercise amount exercise obs -> do
@@ -155,13 +164,12 @@ pushupsCommander = Bot handler where
                 Large  -> 200
                 Huge   -> 1000
             log = liftIO . TIO.putStrLn . pack . show
-            serverId = getServerId m
-            serverUserId = getUserId m
-            safeHead = listToMaybe
+            defUser = UsersRecord serverUserId Nothing Nothing
+            defServerUser userRef serverRef = ServerUsersRecord userRef serverRef serverUserId
 
 
-
-parseMsg :: Monad m => Text -> CobT m Command
+type ParseError = String
+parseMsg :: Text -> Except ParseError Command
 parseMsg m = case uncons $ whitespace m of
         Just ('+', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 AddExercise)
         Just ('-', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 RmExercise)
@@ -170,24 +178,26 @@ parseMsg m = case uncons $ whitespace m of
         -- Just ('?', m') -> parseTargetAndExercise m' <&> maybe Ok (uncurry QueryDatabase)
 
     where
-    parseImperativeCommand :: Monad m => Text -> CobT m (Maybe ImperativeCommand)
+    parseImperativeCommand :: Text -> Except ParseError (Maybe ImperativeCommand)
     parseImperativeCommand s = case takeWord s of
-        ("activate", s')      -> Just . ActivateCommander <$> parseNonEmptyWord s'
-        ("setName", s')       -> Just . SetMasterUsername <$> parseNonEmptyWord s'
-        ("setProfilePic", s') -> Just . SetProfilePicture <$> parseNonEmptyWord s'
-        _ -> return Nothing
+        ("activate", s')      -> Just . ActivateCommander  <$> parseNonEmptyWord s'
+        ("setName", s')       -> Just . SetMasterUsername  <$> parseNonEmptyWord s'
+        ("setProfilePic", s') -> Just . SetProfilePicture  <$> parseNonEmptyWord s'
+        ("link", s')          -> Just . LinkMasterUsername <$> parseNonEmptyWord s'
+        ("getLinkCode", _)    -> return (Just GetLinkingCode)
+        _                     -> return Nothing
 
-    parseNonEmptyWord :: Monad m => Text -> CobT m Text
+    parseNonEmptyWord :: Text -> Except ParseError Text
     parseNonEmptyWord s = case takeWord s of
         ("", _) -> throwError "Parser failed expecting a word"
-        (w, _) -> return w
+        (w, _)  -> return w
 
-    parseAmount :: Monad m => Text -> CobT m (Maybe (Amount, Text))
+    parseAmount :: Text -> Except ParseError (Maybe (Amount, Text))
     parseAmount s = do
         let (a, s') = T.span isDigit $ whitespace s
         return ((, s') <$> readMaybe (unpack a))
 
-    parseExercise :: Monad m => Text -> CobT m (Exercise, Text)
+    parseExercise :: Text -> Except ParseError (Exercise, Text)
     parseExercise s = case takeWord s of
         (""          , s') -> return (Pushups, s')
         ("p"         , s') -> return (Pushups, s')
@@ -200,7 +210,7 @@ parseMsg m = case uncons $ whitespace m of
         ("kilometers", s') -> return (Kilometers, s')
         _                  -> throwError "Exercise not recognized"
 
-    parseTarget :: Monad m => Text -> CobT m (Maybe (Target, Text))
+    parseTarget :: Text -> Except ParseError (Maybe (Target, Text))
     parseTarget s = case takeWord s of
         ("t", s')      -> return $ Just (Today, s')
         ("today", s')  -> return $ Just (Today, s')
@@ -213,7 +223,7 @@ parseMsg m = case uncons $ whitespace m of
     whitespace :: Text -> Text
     whitespace = T.dropWhile (== ' ')
 
-    parseAmountAndExercise :: Monad m => Text -> CobT m (Maybe (Amount, Exercise, Text))
+    parseAmountAndExercise :: Text -> Except ParseError (Maybe (Amount, Exercise, Text))
     parseAmountAndExercise s = do
         mAmount <- parseAmount s
         case mAmount of
