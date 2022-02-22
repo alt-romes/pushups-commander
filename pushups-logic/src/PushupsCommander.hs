@@ -17,11 +17,11 @@ import Data.List (find)
 import Control.Lens ((^?), (^.), (.~), (?~))
 import Data.Function ((&))
 import Data.Functor ((<&>))
-import Data.Bifunctor (second)
+import Data.Bifunctor (first, second)
 import Data.Profunctor (dimap)
-import Data.Char
+import Data.Char as Char (toLower, isDigit)
 import Text.Read hiding (lift)
-import Data.Text as T (Text, span, dropWhile, pack, unpack, uncons)
+import Data.Text as T (Text, span, dropWhile, pack, unpack, uncons, toLower)
 import Data.Text.IO as TIO
 import Control.Monad.Trans
 import Control.Monad.Except (throwError)
@@ -36,20 +36,20 @@ import Bots
 ----- Main -----
 
 type Amount = Int
-data Exercise = Pushups | Abs | Squats | Kilometers deriving (Show)
+data Exercise = Pushups | Abs | Squats | Kilometers deriving (Show, Eq)
 data ServerPlan = Small | Medium | Large | Huge deriving (Show)
 data Command = AddExercise Amount Exercise Text
              | RmExercise Amount Exercise Text
              -- | QueryDatabase Target Exercise
              | Imperative ImperativeCommand
              | Ok
-             deriving (Show)
+             deriving (Show, Eq)
 data ImperativeCommand = ActivateCommander Text
                        | SetMasterUsername Text
                        | SetProfilePicture Text
                        | LinkMasterUsername Text
                        | GetLinkingCode
-                       deriving (Show)
+                       deriving (Show, Eq)
 data Target = Today | All | Server deriving (Show, Eq)
 
 pushupsBot :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommand]
@@ -151,7 +151,7 @@ pushupsCommander = Bot handler where
                 -- Only create server user if server hasn't exceeded the plan's user limit
                 amount <- rmDefinitionCount @ServerUsersRecord ("server:" <> show serverRef)
                 when (amount `exceeds` serverPlan) $
-                    throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map toLower . show) serverPlan <> ")")
+                    throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map Char.toLower . show) serverPlan <> ")")
 
                 -- Create a new server user and a new master user if one doesn't exist yet
                 (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> serverUserId) newUser
@@ -198,7 +198,7 @@ parseMsg m = case uncons $ whitespace m of
         return ((, s') <$> readMaybe (unpack a))
 
     parseExercise :: Text -> Except ParseError (Exercise, Text)
-    parseExercise s = case takeWord s of
+    parseExercise s = case first T.toLower (takeWord s) of
         (""          , s') -> return (Pushups, s')
         ("p"         , s') -> return (Pushups, s')
         ("pushups"   , s') -> return (Pushups, s')

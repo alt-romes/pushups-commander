@@ -9,7 +9,6 @@ import qualified Data.Text.IO as TIO (readFile)
 import qualified Data.Text as T (pack, unpack, init, Text)
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
-import Servant (Server, Proxy(..), Handler)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad (unless, (>=>))
 
