@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -52,17 +53,15 @@ data ImperativeCommand = ActivateCommander Text
                        deriving (Show, Eq)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsBot :: (ChatBotMessage i, MonadIO m) => Bot (CobT m) i [ChatBotCommand]
-pushupsBot = pushupsCommander . processMessageBot
-
-processMessageBot :: (MonadIO m, ChatBotMessage i) => Bot (CobT m) i (Command, ServerIdentifier, ServerUsername)
-processMessageBot = Bot $ \m -> do
+pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (CobT m) i [ChatBotCommand]
+pushupsBot = Bot $ \m -> do
     command <- either throwError return (runExcept (parseMsg (getContent m)))
-    return (command, getServerId m, getUserId m)
+    flip runReaderT (getServerId m, getUserId m) $ runBot pushupsCommander command
 
-pushupsCommander :: MonadIO m => Bot (CobT m) (Command, ServerIdentifier, ServerUsername) [ChatBotCommand]
-pushupsCommander = Bot handler where
-    handler (command, serverId, serverUserId) = do
+type PushupsBotM m = ReaderT (ServerIdentifier, ServerUsername) (CobT m)
+
+pushupsCommander :: MonadIO m => Bot (PushupsBotM m) Command [ChatBotCommand]
+pushupsCommander = Bot $ \command -> do
         log command
         case command of
             AddExercise amount exercise obs -> do
@@ -75,97 +74,114 @@ pushupsCommander = Bot handler where
 
             Imperative imp -> case imp of 
                 ActivateCommander code -> do
-
-                    serversRecords <- rmDefinitionSearch ("activation_code:" <> code)
-
-                    -- Validate code
-                    let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
-                    (id, _) <- find hasActivationCode serversRecords ?: throwError "Invalid activation code!" 
-
-                    -- Activate server
-                    rmUpdateInstance id (serverIdentifier ?~ serverId)
-
+                    activateCommander code
                     return [ ReplyWith "Successfully activated!" ]
 
                 SetMasterUsername newName -> do
-
-                    -- Updated name can't already be in use
-                    existingNames <- rmDefinitionSearch_ @UsersRecord ("master_username:" <> newName)
-                    unless (null existingNames) $
-                        throwError ("Couldn't set username to " <> show newName <> " because that username is already in use.")
-
-                    -- If a new user is created use the new name (the update might be redundant but it's easier than checking)
-                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser (UsersRecord newName Nothing Nothing) defServerUser
-                    rmUpdateInstance userId (masterUsername .~ newName)
-
+                    setMasterUsername newName
                     return [ ReactWith "thumbsup" ]
 
                 SetProfilePicture url -> do
-
-                    -- If a new user is created use the profile picture url (the update might be redundant but it's easier than checking)
-                    (_, s@(ServerUsersRecord userId _ _)) <- getOrCreateServerUser (UsersRecord serverUserId (Just url) Nothing) defServerUser
-                    rmUpdateInstance userId (profilePicture ?~ url)
-
+                    setProfilePic url
                     return [ ReactWith "thumbsup" ]
 
                 LinkMasterUsername code -> do
-
-                    -- Find user record with linking code
-                    (linkUserRef, UsersRecord name _ _) <- rmDefinitionSearch code ?:: throwError "Invalid linking code!"
-
-                    -- Set master user of this server user to linking target (the update might be redundant but it's easier than checking)
-                    (serverUserRef, _) <- getOrCreateServerUser defUser (\_ serverRef -> ServerUsersRecord linkUserRef serverRef serverUserId)
-                    rmUpdateInstance serverUserRef (userId .~ linkUserRef)
-
-                    -- Clear linking code in user record
-                    rmUpdateInstance linkUserRef (linkingCode .~ Nothing)
-
+                    name <- linkMasterUsername code
                     return [ ReactWith "thumbsup", ReplyWith ("Successfully linked to " <> name <> "!") ]
 
                 GetLinkingCode -> do
-
-                    randomCode <- T.pack . show . abs <$> uniformM @Int globalStdGen
-
-                    -- If a new user is created use the linking code (the update might be redudant but it's easier than checking)
-                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser (UsersRecord serverUserId Nothing (Just randomCode)) defServerUser
-                    rmUpdateInstance userId (linkingCode ?~ randomCode)
-                    
+                    randomCode <- getLinkingCode
                     return [ ReactWith "thumbsup", ReplyWith randomCode ]
 
             Ok -> return [ ]
         where
-            addExercise :: MonadIO m => Amount -> Exercise -> Text -> CobT m (Ref ExercisesRecord)
-            addExercise amount exercise obs = do
-                (serverUserRef, _) <- getOrCreateServerUser defUser defServerUser
-                rmAddInstance (ExercisesRecord serverUserRef amount exercise (Just obs))
-
-            -- The ServerUsers record in this context will only be created by
-            -- addExercise if needed. If it isn't needed, the creation code won't run
-            -- (see rmGetOrAddInstanceM)
-            getOrCreateServerUser :: MonadIO m => UsersRecord -> (Ref UsersRecord -> Ref ServersRecord -> ServerUsersRecord) -> CobT m (Ref ServerUsersRecord, ServerUsersRecord)
-            getOrCreateServerUser newUser mkServerUser = rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) $ do
-
-                -- Only create server user if server has been activated
-                (serverRef, ServersRecord _ _ _ serverPlan) <- rmDefinitionSearch ("server:" <> serverId) ?:: throwError "Server hasn't been activated yet!"
-
-                -- Only create server user if server hasn't exceeded the plan's user limit
-                amount <- rmDefinitionCount @ServerUsersRecord ("server:" <> show serverRef)
-                when (amount `exceeds` serverPlan) $
-                    throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map Char.toLower . show) serverPlan <> ")")
-
-                -- Create a new server user and a new master user if one doesn't exist yet
-                (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> serverUserId) newUser
-                return (mkServerUser newUserId serverRef)
-
-            amount `exceeds` serverPlan = amount >= capacity serverPlan
-            capacity serverPlan = case serverPlan of
-                Small  -> 25
-                Medium -> 60
-                Large  -> 200
-                Huge   -> 1000
             log = liftIO . TIO.putStrLn . pack . show
-            defUser = UsersRecord serverUserId Nothing Nothing
-            defServerUser userRef serverRef = ServerUsersRecord userRef serverRef serverUserId
+
+
+addExercise :: MonadIO m => Amount -> Exercise -> Text -> PushupsBotM m (Ref ExercisesRecord)
+addExercise amount exercise obs = do
+    (serverUserRef, _) <- getOrCreateServerUser
+    rmAddInstance (ExercisesRecord serverUserRef amount exercise (Just obs)) & lift
+
+
+activateCommander :: MonadIO m => Text -> PushupsBotM m ServersRecord
+activateCommander code = asks fst >>= \serverId -> lift do
+    
+    serversRecords <- rmDefinitionSearch ("activation_code:" <> code)
+
+    -- Validate code
+    let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
+    (id, _) <- find hasActivationCode serversRecords ?: throwError "Invalid activation code!" 
+
+    -- Activate server
+    rmUpdateInstance id (serverIdentifier ?~ serverId)
+
+
+setMasterUsername :: MonadIO m => Text -> PushupsBotM m UsersRecord
+setMasterUsername newName = do
+    -- Updated name can't already be in use
+    existingNames <- rmDefinitionSearch_ @UsersRecord ("master_username:" <> newName) & lift
+    unless (null existingNames) $
+        throwError ("Couldn't set username to " <> show newName <> " because that username is already in use.")
+
+    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
+    rmUpdateInstance userId (masterUsername .~ newName) & lift
+
+
+setProfilePic :: MonadIO m => Text -> PushupsBotM m UsersRecord
+setProfilePic url = do
+    (_, s@(ServerUsersRecord userId _ _)) <- getOrCreateServerUser
+    rmUpdateInstance userId (profilePicture ?~ url) & lift
+
+
+linkMasterUsername :: MonadIO m => Text -> PushupsBotM m Text
+linkMasterUsername code = do
+    -- Find user record with linking code
+    (linkUserRef, UsersRecord name _ _) <- rmDefinitionSearch code ?:: throwError "Invalid linking code!" & lift
+
+    (serverUserRef, _) <- getOrCreateServerUser
+    rmUpdateInstance serverUserRef (userId .~ linkUserRef) &lift
+
+    -- Clear linking code in user record
+    rmUpdateInstance linkUserRef (linkingCode ?~ "") &lift
+
+    return name
+
+
+getLinkingCode :: MonadIO m => PushupsBotM m Text
+getLinkingCode = do
+    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
+
+    randomCode <- T.pack . show . abs <$> uniformM @Int globalStdGen
+    rmUpdateInstance userId (linkingCode ?~ randomCode) & lift
+
+    return randomCode
+
+
+-- The ServerUsers record in this context will only be created by
+-- addExercise if needed. If it isn't needed, the creation code won't run
+-- (see rmGetOrAddInstanceM)
+getOrCreateServerUser :: MonadIO m => PushupsBotM m (Ref ServerUsersRecord, ServerUsersRecord)
+getOrCreateServerUser = ask >>= \(serverId, serverUserId) -> lift do
+    rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) $ do
+        -- Only create server user if server has been activated
+        (serverRef, ServersRecord _ _ _ serverPlan) <- rmDefinitionSearch ("server:" <> serverId) ?:: throwError "Server hasn't been activated yet!"
+
+        -- Only create server user if server hasn't exceeded the plan's user limit
+        amount <- rmDefinitionCount @ServerUsersRecord ("server:" <> show serverRef)
+        when (amount `exceeds` serverPlan) $
+            throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map Char.toLower . show) serverPlan <> ")")
+
+        -- Create a new server user and a new master user if one doesn't exist yet
+        (newUserRef, _) <- rmGetOrAddInstanceWith (AddInstanceConf True) ("master_username:" <> serverUserId) (UsersRecord serverUserId Nothing Nothing)
+        return (ServerUsersRecord newUserRef serverRef serverUserId)
+    where
+        amount `exceeds` serverPlan = amount >= capacity serverPlan
+        capacity serverPlan = case serverPlan of
+            Small  -> 25
+            Medium -> 60
+            Large  -> 200
+            Huge   -> 1000
 
 
 type ParseError = String
