@@ -6,6 +6,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PushupsCommander where
 
+import Prelude hiding ((.))
+
+import System.Random.Stateful (uniformM, globalStdGen)
+
+import Control.Category
 import Control.Monad.Reader
 import Data.Maybe (isNothing, listToMaybe)
 import Data.List (find)
@@ -66,51 +71,73 @@ pushupsCommander = Bot handler where
 
                     -- Validate code
                     let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
-                    (id, _)        <- find hasActivationCode serversRecords /// throwError "Invalid activation code!" 
+                    (id, _) <- find hasActivationCode serversRecords ?: throwError "Invalid activation code!" 
 
                     -- Activate server
-                    rmUpdateInstances id (serverIdentifier ?~ serverId)
+                    rmUpdateInstance id (serverIdentifier ?~ serverId)
+
                     return [ ReplyWith "Successfully activated!" ]
 
                 SetMasterUsername newName -> do
-
-                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
 
                     -- Updated name can't already be in use
                     existingNames <- rmDefinitionSearch_ @UsersRecord ("master_username:" <> newName)
                     unless (null existingNames) $
                         throwError ("Couldn't set username to " <> show newName <> " because that username is already in use.")
 
-                    -- Update name
-                    rmUpdateInstances userId (masterUsername .~ newName)
+                    -- If a new user is created use the new name (the update might be redundant but it's easier than checking)
+                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser (UsersRecord newName Nothing Nothing) defServerUser
+                    rmUpdateInstance userId (masterUsername .~ newName)
+
                     return [ ReactWith "thumbsup" ]
 
                 SetProfilePicture url -> do
 
-                    (_, s@(ServerUsersRecord userId _ _)) <- getOrCreateServerUser
-                    print s & liftIO
-                    threadDelay 1000000 & liftIO -- TODO: Bug if update is done too soon (user not found...)
+                    -- If a new user is created use the profile picture url (the update might be redundant but it's easier than checking)
+                    (_, s@(ServerUsersRecord userId _ _)) <- getOrCreateServerUser (UsersRecord serverUserId (Just url) Nothing) defServerUser
+                    rmUpdateInstance userId (profilePicture ?~ url)
 
-                    -- Update profile picture url
-                    rmUpdateInstances userId (profilePicture ?~ url)
                     return [ ReactWith "thumbsup" ]
+
+                LinkMasterUsername code -> do
+
+                    -- Find user record with linking code
+                    (linkUserRef, UsersRecord name _ _) <- rmDefinitionSearch code ?:: throwError "Invalid linking code!"
+
+                    -- Set master user of this server user to linking target (the update might be redundant but it's easier than checking)
+                    (serverUserRef, _) <- getOrCreateServerUser defUser (\_ serverRef -> ServerUsersRecord linkUserRef serverRef serverUserId)
+                    rmUpdateInstance serverUserRef (userId .~ linkUserRef)
+
+                    -- Clear linking code in user record
+                    rmUpdateInstance linkUserRef (linkingCode .~ Nothing)
+
+                    return [ ReactWith "thumbsup", ReplyWith ("Successfully linked to " <> name <> "!") ]
+
+                GetLinkingCode -> do
+
+                    randomCode <- T.pack . show . abs <$> uniformM @Int globalStdGen
+
+                    -- If a new user is created use the linking code (the update might be redudant but it's easier than checking)
+                    (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser (UsersRecord serverUserId Nothing (Just randomCode)) defServerUser
+                    rmUpdateInstance userId (linkingCode ?~ randomCode)
+                    
+                    return [ ReactWith "thumbsup", ReplyWith randomCode ]
 
             Ok -> return [ ]
         where
             addExercise :: MonadIO m => Amount -> Exercise -> Text -> CobT m (Ref ExercisesRecord)
             addExercise amount exercise obs = do
-                (serverUserId, _) <- getOrCreateServerUser
-                rmAddInstance (ExercisesRecord serverUserId amount exercise (Just obs))
+                (serverUserRef, _) <- getOrCreateServerUser defUser defServerUser
+                rmAddInstance (ExercisesRecord serverUserRef amount exercise (Just obs))
 
             -- The ServerUsers record in this context will only be created by
             -- addExercise if needed. If it isn't needed, the creation code won't run
             -- (see rmGetOrAddInstanceM)
-            getOrCreateServerUser :: MonadIO m => CobT m (Ref ServerUsersRecord, ServerUsersRecord)
-            getOrCreateServerUser = rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) $ do
+            getOrCreateServerUser :: MonadIO m => UsersRecord -> (Ref UsersRecord -> Ref ServersRecord -> ServerUsersRecord) -> CobT m (Ref ServerUsersRecord, ServerUsersRecord)
+            getOrCreateServerUser newUser mkServerUser = rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) $ do
 
                 -- Only create server user if server has been activated
-                serversRecords <- rmDefinitionSearch ("server:" <> serverId)
-                (serverRef, ServersRecord _ _ _ serverPlan) <- safeHead serversRecords /// throwError "Server hasn't been activated yet!"
+                (serverRef, ServersRecord _ _ _ serverPlan) <- rmDefinitionSearch ("server:" <> serverId) ?:: throwError "Server hasn't been activated yet!"
 
                 -- Only create server user if server hasn't exceeded the plan's user limit
                 amount <- rmDefinitionCount @ServerUsersRecord ("server:" <> show serverRef)
@@ -118,8 +145,8 @@ pushupsCommander = Bot handler where
                     throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map toLower . show) serverPlan <> ")")
 
                 -- Create a new server user and a new master user if one doesn't exist yet
-                (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> serverUserId) (UsersRecord serverUserId Nothing)
-                return (ServerUsersRecord newUserId serverRef serverUserId)
+                (newUserId, _) <- rmGetOrAddInstance ("master_username:" <> serverUserId) newUser
+                return (mkServerUser newUserId serverRef)
 
             amount `exceeds` serverPlan = amount >= capacity serverPlan
             capacity serverPlan = case serverPlan of

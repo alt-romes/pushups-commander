@@ -41,6 +41,8 @@ executable pushups-chatbot
         lens,
         aeson,
 
+        random ^>=1.2.1,
+
         cob^>=0.1.0.0,
         bots^>=0.1.0.0,
 

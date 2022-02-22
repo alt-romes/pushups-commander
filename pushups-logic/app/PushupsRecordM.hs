@@ -37,15 +37,15 @@ instance FromJSON ServerPlan where
 type Owner = Text
 type ActivationCode = Text
 type MasterUsername = Text
-type ProfilePicture = Text
 type ServerIdentifier = Text
 type ServerUsername = Text
 type Id = Int
 
 data UsersRecord = UsersRecord
     { _masterUsername :: MasterUsername
-    , _profilePicture :: Maybe ProfilePicture }
-mkRecord ''UsersRecord "ROMES Pushups Users" ["Master Username", "Profile Picture"]
+    , _profilePicture :: Maybe Text
+    , _linkingCode    :: Maybe Text}
+mkRecord ''UsersRecord "ROMES Pushups Users" ["Master Username", "Profile Picture", "Linking Code"]
 makeLenses ''UsersRecord
 
 
