@@ -1,3 +1,4 @@
+{-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TupleSections #-}
@@ -13,6 +14,7 @@ import System.Random.Stateful (uniformM, globalStdGen)
 
 import Control.Category
 import Control.Monad.Reader
+import Control.Applicative ((<|>), empty)
 import Data.Maybe (isNothing, listToMaybe)
 import Data.List (find)
 import Control.Lens ((^?), (^.), (.~), (?~))
@@ -53,12 +55,12 @@ data ImperativeCommand = ActivateCommander Text
                        deriving (Show, Eq)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (CobT m) i [ChatBotCommand]
+pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (RecordM m) i [ChatBotCommand]
 pushupsBot = Bot $ \m -> do
     command <- either throwError return (runExcept (parseMsg (getContent m)))
     flip runReaderT (getServerId m, getUserId m) $ runBot pushupsCommander command
 
-type PushupsBotM m = ReaderT (ServerIdentifier, ServerUsername) (CobT m)
+type PushupsBotM m = ReaderT (ServerIdentifier, ServerUsername) (RecordM m)
 
 pushupsCommander :: MonadIO m => Bot (PushupsBotM m) Command [ChatBotCommand]
 pushupsCommander = Bot $ \command -> do
@@ -94,8 +96,8 @@ pushupsCommander = Bot $ \command -> do
                     return [ ReactWith "thumbsup", ReplyWith randomCode ]
 
             Ok -> return [ ]
-        where
-            log = liftIO . TIO.putStrLn . pack . show
+
+        where log = liftIO . TIO.putStrLn . pack . show
 
 
 addExercise :: MonadIO m => Amount -> Exercise -> Text -> PushupsBotM m (Ref ExercisesRecord)
@@ -111,7 +113,7 @@ activateCommander code = asks fst >>= \serverId -> lift do
 
     -- Validate code
     let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
-    (id, _) <- find hasActivationCode serversRecords ?: throwError "Invalid activation code!" 
+    (id, _) <- find hasActivationCode serversRecords ?? throwError "Invalid activation code!" 
 
     -- Activate server
     rmUpdateInstance id (serverIdentifier ?~ serverId)
@@ -137,8 +139,9 @@ setProfilePic url = do
 linkMasterUsername :: MonadIO m => Text -> PushupsBotM m Text
 linkMasterUsername code = do
     -- Find user record with linking code
-    (linkUserRef, UsersRecord name _ _) <- rmDefinitionSearch code ?:: throwError "Invalid linking code!" & lift
+    (linkUserRef, UsersRecord name _ _) <- rmDefinitionSearch code ??? throwError "Invalid linking code!" & lift
 
+    -- Set this server user's master user to user with given linking code
     (serverUserRef, _) <- getOrCreateServerUser
     rmUpdateInstance serverUserRef (userId .~ linkUserRef) &lift
 
@@ -152,6 +155,7 @@ getLinkingCode :: MonadIO m => PushupsBotM m Text
 getLinkingCode = do
     (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
 
+    -- Set linking code in this server user's master user
     randomCode <- T.pack . show . abs <$> uniformM @Int globalStdGen
     rmUpdateInstance userId (linkingCode ?~ randomCode) & lift
 
@@ -162,19 +166,20 @@ getLinkingCode = do
 -- addExercise if needed. If it isn't needed, the creation code won't run
 -- (see rmGetOrAddInstanceM)
 getOrCreateServerUser :: MonadIO m => PushupsBotM m (Ref ServerUsersRecord, ServerUsersRecord)
-getOrCreateServerUser = ask >>= \(serverId, serverUserId) -> lift do
-    rmGetOrAddInstanceM ("serveruser:" <> serverId <> "-" <> serverUserId) $ do
+getOrCreateServerUser = ask >>= \(serverId :: ServerIdentifier, serverUserId) -> lift do
+    (rmDefinitionSearch ("server_reference:" <> serverId <> " server_username:" <> serverUserId) ?!) <|> do
         -- Only create server user if server has been activated
-        (serverRef, ServersRecord _ _ _ serverPlan) <- rmDefinitionSearch ("server:" <> serverId) ?:: throwError "Server hasn't been activated yet!"
+        (serverRef, ServersRecord _ _ _ serverPlan) <- rmDefinitionSearch ("server:" <> serverId) ??? throwError "Server hasn't been activated yet!"
 
         -- Only create server user if server hasn't exceeded the plan's user limit
         amount <- rmDefinitionCount @ServerUsersRecord ("server:" <> show serverRef)
         when (amount `exceeds` serverPlan) $
             throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map Char.toLower . show) serverPlan <> ")")
 
-        -- Create a new server user and a new master user if one doesn't exist yet
-        (newUserRef, _) <- rmGetOrAddInstanceWith (AddInstanceConf True) ("master_username:" <> serverUserId) (UsersRecord serverUserId Nothing Nothing)
-        return (ServerUsersRecord newUserRef serverRef serverUserId)
+        -- Create a new server user and a new master user (one doesn't exist yet)
+        newUserRef <- fst <$> (rmDefinitionSearch ("master_username:" <> serverUserId) ?!) <|> rmAddInstanceSync (UsersRecord serverUserId Nothing Nothing)
+        ref <- rmAddInstanceSync (ServerUsersRecord newUserRef serverRef serverUserId)
+        return (ref, ServerUsersRecord newUserRef serverRef serverUserId)
     where
         amount `exceeds` serverPlan = amount >= capacity serverPlan
         capacity serverPlan = case serverPlan of
@@ -252,7 +257,4 @@ parseMsg m = case uncons $ whitespace m of
     takeWord = T.span (/= ' ') . whitespace
 
     uncurry3 f (a, b, c) = f a b c
-
---     parseTargetAndExercise :: Monad m => Text -> ExceptT ParseError m (Maybe (Target, Exercise))
---     parseTargetAndExercise s = (second parseExercise <$>) <$> parseTarget s
 

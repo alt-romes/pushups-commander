@@ -36,11 +36,11 @@ cobClassf = Bot $ \m -> do
     classf :: [Classficação] <- rmDefinitionSearch_ (getContent m)
     pure [ReplyWith (T.pack (show classf))]
 
-type CobBot m i o = Bot (CobT m) i o
+type CobBot m i o = Bot (RecordM m) i o
 type CobChatBot = forall m i. (MonadIO m, ChatBotMessage i) => CobBot m i [ChatBotCommand]
 
 runCobBot :: Monad m => CobSession -> CobBot m i [ChatBotCommand] -> Bot m i [ChatBotCommand]
-runCobBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCobT session)
+runCobBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runRecordM session)
 
 echoBot :: ChatBot
 echoBot = Bot (\m -> return [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)])
@@ -82,7 +82,6 @@ main = do
 
     runChatBotServers 25564
         
-        -- (muscle <> echo "Gil disse" <> echo "Rodrigo disse")
         (runCobBot session pushupsBot)
 
         [ slackServer (slackToken, slackSigningToken, tlsmanager session)
