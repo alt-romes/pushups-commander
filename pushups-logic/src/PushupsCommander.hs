@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeApplications #-}
@@ -52,7 +53,13 @@ data ImperativeCommand = ActivateCommander Text
                        | SetProfilePicture Text
                        | LinkMasterUsername Text
                        | GetLinkingCode
+                       | CreateChallenge Amount Exercise TimeInterval Text
                        deriving (Show, Eq)
+data TimeInterval = Day
+                  | Week
+                  | Month
+                  | Year
+                  deriving (Show, Eq)
 data Target = Today | All | Server deriving (Show, Eq)
 
 pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (RecordM m) i [ChatBotCommand]
@@ -94,6 +101,10 @@ pushupsCommander = Bot $ \command -> do
                 GetLinkingCode -> do
                     randomCode <- getLinkingCode
                     return [ ReactWith "thumbsup", ReplyWith randomCode ]
+
+                CreateChallenge amount exercise interval obs -> do
+                    createChallenge amount exercise interval (Just obs)
+                    return [ ReplyWith "A challenge has been declared:" ]
 
             Ok -> return [ ]
 
@@ -160,6 +171,13 @@ getLinkingCode = do
     rmUpdateInstance userId (linkingCode ?~ randomCode) & lift
 
     return randomCode
+
+
+createChallenge :: MonadIO m => Amount -> Exercise -> TimeInterval -> Maybe Text -> PushupsBotM m (Ref ChallengesRecord)
+createChallenge amount exercise timeInterval obs = asks fst >>= \serverId -> lift do
+    (serverRef, ServersRecord {}) <- rmDefinitionSearch ("server:" <> serverId) ??? throwError "Server hasn't been activated yet!"
+    rmAddInstance (ChallengesRecord serverRef amount exercise timeInterval obs)
+
 
 
 -- The ServerUsers record in this context will only be created by

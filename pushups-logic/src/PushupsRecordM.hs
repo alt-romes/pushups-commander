@@ -8,7 +8,7 @@ import Data.Text
 
 import Data.Aeson
 
-import {-# SOURCE #-} PushupsCommander (Amount, Exercise(..), ServerPlan(..))
+import {-# SOURCE #-} PushupsCommander (Amount, Exercise(..), ServerPlan(..), TimeInterval(..))
 
 import Cob
 import Cob.RecordM
@@ -34,12 +34,24 @@ instance FromJSON ServerPlan where
           "huge" -> return Huge
           _ -> fail "Error parsing server plan from JSON"
 
+instance ToJSON TimeInterval where
+    toJSON = toJSON . toLower . pack . show
+instance FromJSON TimeInterval where
+    parseJSON = withText "Time Interval" $ \case
+          "day" -> return Day
+          "week" -> return Week
+          "month" -> return Month
+          "year" -> return Year
+          _ -> fail "Error parsing time interval from JSON"
+
+
 type Owner = Text
 type ActivationCode = Text
 type MasterUsername = Text
 type ServerIdentifier = Text
 type ServerUsername = Text
 type Id = Int
+
 
 data UsersRecord = UsersRecord
     { _masterUsername :: MasterUsername
@@ -76,3 +88,13 @@ data ExercisesRecord = ExercisesRecord
 mkRecord ''ExercisesRecord "ROMES Pushups Exercises" ["Server Username", "Amount", "Exercise Type", "Obs"]
 makeLenses ''ExercisesRecord
 
+
+data ChallengesRecord = ChallengesRecord
+    { _cServerId :: Ref ServersRecord
+    , _cAmount   :: Amount
+    , _cExercise :: Exercise
+    , _cInterval :: TimeInterval
+    , _cObs      :: Maybe Text
+    }
+mkRecord ''ChallengesRecord "ROMES Pushups Challenges" ["Server", "Amount", "Exercise", "Time Interval", "Obs"]
+makeLenses ''ChallengesRecord
