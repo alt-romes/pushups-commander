@@ -38,10 +38,10 @@ instance ToJSON TimeInterval where
     toJSON = toJSON . toLower . pack . show
 instance FromJSON TimeInterval where
     parseJSON = withText "Time Interval" $ \case
-          "day" -> return Day
-          "week" -> return Week
-          "month" -> return Month
-          "year" -> return Year
+          "daily" -> return Daily
+          "weekly" -> return Weekly
+          "monthly" -> return Monthly
+          "yearly" -> return Yearly
           _ -> fail "Error parsing time interval from JSON"
 
 

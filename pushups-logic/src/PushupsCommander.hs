@@ -1,3 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE BlockArguments #-}
@@ -14,9 +17,10 @@ import Prelude hiding ((.))
 import System.Random.Stateful (uniformM, globalStdGen)
 
 import Control.Category
+import Control.Monad.Identity (Identity)
 import Control.Monad.Reader
 import Control.Applicative ((<|>), empty)
-import Data.Maybe (isNothing, listToMaybe)
+import Data.Maybe (isNothing, listToMaybe, fromMaybe)
 import Data.List (find)
 import Control.Lens ((^?), (^.), (.~), (?~))
 import Data.Function ((&))
@@ -28,7 +32,7 @@ import Text.Read hiding (lift)
 import Data.Text as T (Text, span, dropWhile, pack, unpack, uncons, toLower)
 import Data.Text.IO as TIO
 import Control.Monad.Trans
-import Control.Monad.Except (throwError)
+import Control.Monad.Except (throwError, MonadError, catchError)
 import Control.Monad.Trans.Except
 import Control.Concurrent (threadDelay)
 
@@ -55,16 +59,16 @@ data ImperativeCommand = ActivateCommander Text
                        | GetLinkingCode
                        | CreateChallenge Amount Exercise TimeInterval Text
                        deriving (Show, Eq)
-data TimeInterval = Day
-                  | Week
-                  | Month
-                  | Year
+data TimeInterval = Daily
+                  | Weekly
+                  | Monthly
+                  | Yearly
                   deriving (Show, Eq)
 data Target = Today | All | Server deriving (Show, Eq)
 
 pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (RecordM m) i [ChatBotCommand]
 pushupsBot = Bot $ \m -> do
-    command <- either throwError return (runExcept (parseMsg (getContent m)))
+    command <- either throwError return $ fromMaybe (Right Ok) $ runExceptT $ runParser parseMsg (getContent m)
     flip runReaderT (getServerId m, getUserId m) $ runBot pushupsCommander command
 
 type PushupsBotM m = ReaderT (ServerIdentifier, ServerUsername) (RecordM m)
@@ -207,96 +211,118 @@ getOrCreateServerUser = ask >>= \(serverId :: ServerIdentifier, serverUserId) ->
             Huge   -> 1000
 
 
-newtype CobParser m a = CobParser { runCobParser :: forall mod. Monoid (CobWriter mod) => Text -> CobT mod m (a, Text) }
+newtype ParserT m a = Parser { unParser :: Text -> m (a, Text) }
+type CobParser a = ParserT Identity a
 
-instance Functor m => Functor (CobParser m) where
-    fmap f (CobParser g) = CobParser (fmap (first f) . g)
+instance Functor m => Functor (ParserT m) where
+    fmap f (Parser g) = Parser (fmap (first f) . g)
 
-instance Monad m => Applicative (CobParser m) where
-    pure x = CobParser $ \s -> pure (x, mempty)
-    CobParser g <*> CobParser h = CobParser $ \s -> do
+instance Monad m => Applicative (ParserT m) where
+    pure x = Parser $ \s -> pure (x, mempty)
+    Parser g <*> Parser h = Parser $ \s -> do
         (t, s') <- g s
         (y, s'') <- h s'
         pure (t y, s'')
 
-instance Monad m => Monad (CobParser m) where
-    CobParser x' >>= f = CobParser $ \s -> do
+instance Monad m => Monad (ParserT m) where
+    Parser x' >>= f = Parser $ \s -> do
         (x, s') <- x' s
-        runCobParser (f x) s'
+        unParser (f x) s'
 
-type ParseError = String
-parseMsg :: Monad m => Text -> CobParser m Command
-parseMsg m = case uncons $ whitespace m of
-        Just ('+', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 AddExercise)
-        Just ('-', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 RmExercise)
-        Just ('!', m') -> parseImperativeCommand m' <&> maybe Ok Imperative
-        _              -> return Ok
-        -- Just ('?', m') -> parseTargetAndExercise m' <&> maybe Ok (uncurry QueryDatabase)
+instance Monad m => MonadError String (ParserT (ExceptT String m)) where
+    throwError x = Parser $ \s -> throwError x
+    Parser f `catchError` g = Parser $ \s -> f s `catchError` (($ s) . unParser . g)
+
+runParser :: Functor m => ParserT m a -> Text -> m a
+runParser p = fmap fst . unParser p
+
+-- newtype PushupsParser a = PushupsParser { runPushupsParser :: CobParser (Maybe a) }
+
+-- instance Functor PushupsParser where
+--     fmap f = PushupsParser . fmap (fmap f) . runPushupsParser
+
+-- instance Applicative PushupsParser where
+--     pure = PushupsParser . pure . Just
+--     PushupsParser f <*> PushupsParser y = PushupsParser $ ((<*>) <$> f) <*> y
+
+-- instance Monad PushupsParser where
+--     PushupsParser x >>= f = PushupsParser $ 
+
+
+type PushupsParser a = ParserT (ExceptT String Maybe) a
+
+parseMsg :: PushupsParser Command
+parseMsg = takeHead >>= \case
+        '+' -> uncurry3 AddExercise <$> parseAmountAndExercise
+        '-' -> uncurry3 RmExercise <$> parseAmountAndExercise
+        '!' -> Imperative <$> parseImperativeCommand
+        _   -> failPParser
 
     where
-    parseImperativeCommand :: Text -> Except ParseError (Maybe ImperativeCommand)
-    parseImperativeCommand s = case takeWord s of
-        ("activate", s')      -> Just . ActivateCommander  <$> parseNonEmptyWord s'
-        ("setName", s')       -> Just . SetMasterUsername  <$> parseNonEmptyWord s'
-        ("setProfilePic", s') -> Just . SetProfilePicture  <$> parseNonEmptyWord s'
-        ("link", s')          -> Just . LinkMasterUsername <$> parseNonEmptyWord s'
-        ("getLinkCode", _)    -> return (Just GetLinkingCode)
-        -- ("challenge", s')     -> Just . CreateChallenge <$> parseChallenge s'
-        _                     -> return Nothing
+    parseImperativeCommand :: PushupsParser ImperativeCommand
+    parseImperativeCommand = takeWord >>= \case
+        "activate"      -> ActivateCommander  <$> parseNonEmptyWord
+        "setName"       -> SetMasterUsername  <$> parseNonEmptyWord
+        "setProfilePic" -> SetProfilePicture  <$> parseNonEmptyWord
+        "link"          -> LinkMasterUsername <$> parseNonEmptyWord
+        "getLinkCode"   -> return GetLinkingCode
+        "challenge"     -> CreateChallenge    <$> parseAmount <*> parseExercise <*> parseInterval <*> takeRemaining
+        _               -> failPParser
 
-    parseNonEmptyWord :: Text -> Except ParseError Text
-    parseNonEmptyWord s = case takeWord s of
-        ("", _) -> throwError "Parser failed expecting a word"
-        (w, _)  -> return w
+    parseAmount :: PushupsParser Amount
+    parseAmount = Parser $ \s ->
+        let (a, s') = T.span isDigit $ whitespace s in
+        lift $ (, s') <$> readMaybe (unpack a)
 
-    parseAmount :: Text -> Except ParseError (Maybe (Amount, Text))
-    parseAmount s = do
-        let (a, s') = T.span isDigit $ whitespace s
-        return ((, s') <$> readMaybe (unpack a))
+    parseExercise :: PushupsParser Exercise
+    parseExercise = takeWord >>= (\case
+        ""           -> return Pushups
+        "p"          -> return Pushups
+        "pushups"    -> return Pushups
+        "a"          -> return Abs
+        "abs"        -> return Abs
+        "s"          -> return Squats
+        "squats"     -> return Squats
+        "km"         -> return Kilometers
+        "kilometers" -> return Kilometers
+        _            -> throwError "Exercise not recognized"
+                                 ) . T.toLower
 
-    parseExercise :: Text -> Except ParseError (Exercise, Text)
-    parseExercise s = case first T.toLower (takeWord s) of
-        (""          , s') -> return (Pushups, s')
-        ("p"         , s') -> return (Pushups, s')
-        ("pushups"   , s') -> return (Pushups, s')
-        ("a"         , s') -> return (Abs, s')
-        ("abs"       , s') -> return (Abs, s')
-        ("s"         , s') -> return (Squats, s')
-        ("squats"    , s') -> return (Squats, s')
-        ("km"        , s') -> return (Kilometers, s')
-        ("kilometers", s') -> return (Kilometers, s')
-        _                  -> throwError "Exercise not recognized"
+    parseInterval :: PushupsParser TimeInterval
+    parseInterval = takeWord >>= \case
+        "daily"   -> return Daily
+        "weekly"  -> return Weekly
+        "monthly" -> return Monthly
+        "yearly"  -> return Yearly
+        _         -> failPParser
 
-    parseTarget :: Text -> Except ParseError (Maybe (Target, Text))
-    parseTarget s = case takeWord s of
-        ("t", s')      -> return $ Just (Today, s')
-        ("today", s')  -> return $ Just (Today, s')
-        ("a", s')      -> return $ Just (All, s')
-        ("all", s')    -> return $ Just (All, s')
-        ("s", s')      -> return $ Just (Server, s')
-        ("server", s') -> return $ Just (Server, s')
-        _              -> return Nothing
+    parseAmountAndExercise :: PushupsParser (Amount, Exercise, Text)
+    parseAmountAndExercise = do
+        a <- parseAmount
+        e <- parseExercise
+        s <- takeRemaining
+        return (a, e, s) -- Return amount, exercise, and observations
 
-    -- parseChallenge :: Text -> Except ParseError (Maybe (Challenge, Text))
-    -- parseChallenge s = do
-    --     mAmount <- parseAmount s
-    --     case mAmount of
-    --       Nothing -> return Nothing
+    takeWord :: PushupsParser Text
+    takeWord = Parser (return . T.span (/= ' ') . whitespace)
+
+    takeHead :: PushupsParser Char
+    takeHead = Parser (lift . T.uncons . whitespace)
+
+    takeRemaining :: PushupsParser Text
+    takeRemaining = Parser (return . (, mempty) . whitespace)
+
+    parseNonEmptyWord :: PushupsParser Text
+    parseNonEmptyWord = takeWord >>= \case
+        "" -> throwError "Parser failed expecting a word"
+        w  -> return w
+
+    failPParser :: PushupsParser a
+    failPParser = Parser (const $ lift Nothing)
 
     whitespace :: Text -> Text
     whitespace = T.dropWhile (== ' ')
 
-    parseAmountAndExercise :: Text -> Except ParseError (Maybe (Amount, Exercise, Text))
-    parseAmountAndExercise s = do
-        mAmount <- parseAmount s
-        case mAmount of
-          Nothing -> return Nothing
-          Just (a, s') -> do
-            (e, s'') <- parseExercise s'
-            return (Just (a, e, whitespace s'')) -- Return amount, exercise, and observations
-
-    takeWord :: Text -> (Text, Text)
-    takeWord = T.span (/= ' ') . whitespace
-
     uncurry3 f (a, b, c) = f a b c
+
 
