@@ -207,8 +207,25 @@ getOrCreateServerUser = ask >>= \(serverId :: ServerIdentifier, serverUserId) ->
             Huge   -> 1000
 
 
+newtype CobParser m a = CobParser { runCobParser :: forall mod. Monoid (CobWriter mod) => Text -> CobT mod m (a, Text) }
+
+instance Functor m => Functor (CobParser m) where
+    fmap f (CobParser g) = CobParser (fmap (first f) . g)
+
+instance Monad m => Applicative (CobParser m) where
+    pure x = CobParser $ \s -> pure (x, mempty)
+    CobParser g <*> CobParser h = CobParser $ \s -> do
+        (t, s') <- g s
+        (y, s'') <- h s'
+        pure (t y, s'')
+
+instance Monad m => Monad (CobParser m) where
+    CobParser x' >>= f = CobParser $ \s -> do
+        (x, s') <- x' s
+        runCobParser (f x) s'
+
 type ParseError = String
-parseMsg :: Text -> Except ParseError Command
+parseMsg :: Monad m => Text -> CobParser m Command
 parseMsg m = case uncons $ whitespace m of
         Just ('+', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 AddExercise)
         Just ('-', m') -> parseAmountAndExercise m' <&> maybe Ok (uncurry3 RmExercise)
@@ -224,6 +241,7 @@ parseMsg m = case uncons $ whitespace m of
         ("setProfilePic", s') -> Just . SetProfilePicture  <$> parseNonEmptyWord s'
         ("link", s')          -> Just . LinkMasterUsername <$> parseNonEmptyWord s'
         ("getLinkCode", _)    -> return (Just GetLinkingCode)
+        -- ("challenge", s')     -> Just . CreateChallenge <$> parseChallenge s'
         _                     -> return Nothing
 
     parseNonEmptyWord :: Text -> Except ParseError Text
@@ -258,6 +276,12 @@ parseMsg m = case uncons $ whitespace m of
         ("s", s')      -> return $ Just (Server, s')
         ("server", s') -> return $ Just (Server, s')
         _              -> return Nothing
+
+    -- parseChallenge :: Text -> Except ParseError (Maybe (Challenge, Text))
+    -- parseChallenge s = do
+    --     mAmount <- parseAmount s
+    --     case mAmount of
+    --       Nothing -> return Nothing
 
     whitespace :: Text -> Text
     whitespace = T.dropWhile (== ' ')
