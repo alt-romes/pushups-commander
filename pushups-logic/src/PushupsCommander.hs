@@ -1,3 +1,4 @@
+{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -218,7 +219,7 @@ instance Functor m => Functor (ParserT m) where
     fmap f (Parser g) = Parser (fmap (first f) . g)
 
 instance Monad m => Applicative (ParserT m) where
-    pure x = Parser $ \s -> pure (x, mempty)
+    pure x = Parser $ \s -> pure (x, s)
     Parser g <*> Parser h = Parser $ \s -> do
         (t, s') <- g s
         (y, s'') <- h s'
@@ -230,32 +231,19 @@ instance Monad m => Monad (ParserT m) where
         unParser (f x) s'
 
 instance Monad m => MonadError String (ParserT (ExceptT String m)) where
-    throwError x = Parser $ \s -> throwError x
+    throwError = Parser . const . throwError
     Parser f `catchError` g = Parser $ \s -> f s `catchError` (($ s) . unParser . g)
 
 runParser :: Functor m => ParserT m a -> Text -> m a
 runParser p = fmap fst . unParser p
 
--- newtype PushupsParser a = PushupsParser { runPushupsParser :: CobParser (Maybe a) }
-
--- instance Functor PushupsParser where
---     fmap f = PushupsParser . fmap (fmap f) . runPushupsParser
-
--- instance Applicative PushupsParser where
---     pure = PushupsParser . pure . Just
---     PushupsParser f <*> PushupsParser y = PushupsParser $ ((<*>) <$> f) <*> y
-
--- instance Monad PushupsParser where
---     PushupsParser x >>= f = PushupsParser $ 
-
-
 type PushupsParser a = ParserT (ExceptT String Maybe) a
 
 parseMsg :: PushupsParser Command
 parseMsg = takeHead >>= \case
-        '+' -> uncurry3 AddExercise <$> parseAmountAndExercise
-        '-' -> uncurry3 RmExercise <$> parseAmountAndExercise
-        '!' -> Imperative <$> parseImperativeCommand
+        '+' -> AddExercise <$> parseAmount <*> parseExercise <*> takeRemaining
+        '-' -> RmExercise  <$> parseAmount <*> parseExercise <*> takeRemaining
+        '!' -> Imperative  <$> parseImperativeCommand
         _   -> failPParser
 
     where
@@ -289,40 +277,32 @@ parseMsg = takeHead >>= \case
                                  ) . T.toLower
 
     parseInterval :: PushupsParser TimeInterval
-    parseInterval = takeWord >>= \case
+    parseInterval = takeWord >>= (\case
         "daily"   -> return Daily
         "weekly"  -> return Weekly
         "monthly" -> return Monthly
         "yearly"  -> return Yearly
         _         -> failPParser
-
-    parseAmountAndExercise :: PushupsParser (Amount, Exercise, Text)
-    parseAmountAndExercise = do
-        a <- parseAmount
-        e <- parseExercise
-        s <- takeRemaining
-        return (a, e, s) -- Return amount, exercise, and observations
-
-    takeWord :: PushupsParser Text
-    takeWord = Parser (return . T.span (/= ' ') . whitespace)
-
-    takeHead :: PushupsParser Char
-    takeHead = Parser (lift . T.uncons . whitespace)
-
-    takeRemaining :: PushupsParser Text
-    takeRemaining = Parser (return . (, mempty) . whitespace)
-
-    parseNonEmptyWord :: PushupsParser Text
-    parseNonEmptyWord = takeWord >>= \case
-        "" -> throwError "Parser failed expecting a word"
-        w  -> return w
+                                 ) . T.toLower
 
     failPParser :: PushupsParser a
     failPParser = Parser (const $ lift Nothing)
 
-    whitespace :: Text -> Text
-    whitespace = T.dropWhile (== ' ')
 
-    uncurry3 f (a, b, c) = f a b c
+takeWord :: PushupsParser Text
+takeWord = Parser (return . T.span (/= ' ') . whitespace)
 
+takeHead :: PushupsParser Char
+takeHead = Parser (lift . T.uncons . whitespace)
+
+takeRemaining :: PushupsParser Text
+takeRemaining = Parser (return . (, mempty) . whitespace)
+
+parseNonEmptyWord :: PushupsParser Text
+parseNonEmptyWord = takeWord >>= \case
+    "" -> throwError "Parser failed expecting a word"
+    w  -> return w
+
+whitespace :: Text -> Text
+whitespace = T.dropWhile (== ' ')
 

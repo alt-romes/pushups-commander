@@ -42,11 +42,11 @@ parsingTests = testGroup "Parsing (checked by QuickCheck)"
 
     addEP :: Int -> Exercise -> String -> Property
     addEP amount exercise notes = (not (null notes) && amount > 0) ==>
-        runExcept (parseMsg $ T.pack $ "+" <> show amount <> " " <> show exercise <> " " <> notes) == Right (AddExercise amount exercise $ T.pack (dropWhile (== ' ') notes))
+        runExceptT (runParser parseMsg $ T.pack $ "+" <> show amount <> " " <> show exercise <> " " <> notes) == Just (Right (AddExercise amount exercise $ T.pack (dropWhile (== ' ') notes)))
 
     remvEP :: Int -> Exercise -> String -> Property
     remvEP amount exercise notes = (not (null notes) && amount > 0) ==>
-        runExcept (parseMsg $ T.pack $ "-" <> show amount <> " " <> show exercise <> " " <> notes) == Right (RmExercise amount exercise $ T.pack (dropWhile (== ' ') notes))
+        runExceptT (runParser parseMsg $ T.pack $ "-" <> show amount <> " " <> show exercise <> " " <> notes) == Just (Right (RmExercise amount exercise $ T.pack (dropWhile (== ' ') notes)))
 
 instance Arbitrary Exercise where
     arbitrary = elements [Pushups, Abs, Squats, Kilometers]
@@ -59,16 +59,6 @@ unitTests session = testGroup "Pushups Bot Unit Tests"
     , testCase "Set Master Username" (runPushupsTest session test_setMasterUsername)
     , testCase "Set Profile Picture" (runPushupsTest session test_setProfilePic)
     , testCase "Linking" (runPushupsTest session test_linking)
-    -- , testCase "Add Exercise" (runPushupsTest session test_addExercise)
-    -- , testCase "Set Master Username" (runPushupsTest session test_setMasterUsername)
-    -- , testCase "Set Profile Picture" (runPushupsTest session test_setProfilePic)
-    -- , testCase "Linking" (runPushupsTest session test_linking)
-    -- , testCase "Add Exercise" (runPushupsTest session test_addExercise)
-    -- , testCase "Add Exercise" (runPushupsTest session test_addExercise)
-    -- , testCase "Add Exercise" (runPushupsTest session test_addExercise)
-    -- , testCase "Set Master Username" (runPushupsTest session test_setMasterUsername)
-    -- , testCase "Set Profile Picture" (runPushupsTest session test_setProfilePic)
-    -- , testCase "Add Exercise" (runPushupsTest session test_addExercise)
     ]
 
 deriving instance Show ExercisesRecord
