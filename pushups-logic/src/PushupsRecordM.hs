@@ -96,5 +96,5 @@ data ChallengesRecord = ChallengesRecord
     , _cInterval :: TimeInterval
     , _cObs      :: Maybe Text
     }
-mkRecord ''ChallengesRecord "ROMES Pushups Challenges" ["Server", "Amount", "Exercise", "Time Interval", "Obs"]
+mkRecord ''ChallengesRecord "ROMES Pushups Challenges" ["Server", "Amount", "Exercise Type", "Time Interval", "Obs"]
 makeLenses ''ChallengesRecord

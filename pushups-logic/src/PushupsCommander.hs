@@ -109,7 +109,7 @@ pushupsCommander = Bot $ \command -> do
 
                 CreateChallenge amount exercise interval obs -> do
                     createChallenge amount exercise interval (Just obs)
-                    return [ ReplyWith "A challenge has been declared:" ]
+                    return [ ReplyWith "A challenge has been declared!" ]
 
             Ok -> return [ ]
 
