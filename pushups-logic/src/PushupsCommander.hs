@@ -44,7 +44,7 @@ import Bots
 
 ----- Main -----
 
-type Amount = Int
+type Amount = Float
 data Exercise = Pushups | Abs | Squats | Kilometers deriving (Show, Eq)
 data ServerPlan = Small | Medium | Large | Huge deriving (Show)
 data Command = AddExercise Amount Exercise Text
@@ -241,8 +241,8 @@ type PushupsParser a = ParserT (ExceptT String Maybe) a
 
 parseMsg :: PushupsParser Command
 parseMsg = takeHead >>= \case
-        '+' -> AddExercise <$> parseAmount <*> parseExercise <*> takeRemaining
-        '-' -> RmExercise  <$> parseAmount <*> parseExercise <*> takeRemaining
+        '+' -> AddExercise <$> takeFloat <*> parseExercise <*> takeRemaining
+        '-' -> RmExercise  <$> takeFloat <*> parseExercise <*> takeRemaining
         '!' -> Imperative  <$> parseImperativeCommand
         _   -> failPParser
 
@@ -254,13 +254,8 @@ parseMsg = takeHead >>= \case
         "setProfilePic" -> SetProfilePicture  <$> parseNonEmptyWord
         "link"          -> LinkMasterUsername <$> parseNonEmptyWord
         "getLinkCode"   -> return GetLinkingCode
-        "challenge"     -> CreateChallenge    <$> parseAmount <*> parseExercise <*> parseInterval <*> takeRemaining
+        "challenge"     -> CreateChallenge    <$> takeFloat <*> parseExercise <*> parseInterval <*> takeRemaining
         _               -> failPParser
-
-    parseAmount :: PushupsParser Amount
-    parseAmount = Parser $ \s ->
-        let (a, s') = T.span isDigit $ whitespace s in
-        lift $ (, s') <$> readMaybe (unpack a)
 
     parseExercise :: PushupsParser Exercise
     parseExercise = takeWord >>= (\case
@@ -288,6 +283,16 @@ parseMsg = takeHead >>= \case
     failPParser :: PushupsParser a
     failPParser = Parser (const $ lift Nothing)
 
+
+takeFloat :: PushupsParser Float
+takeFloat = Parser $ \s ->
+    let (a, s') = T.span (\x -> isDigit x || (== '.') x) $ whitespace s in
+    lift $ (, s') <$> readMaybe (unpack a)
+
+takeInt :: PushupsParser Int
+takeInt = Parser $ \s ->
+    let (a, s') = T.span isDigit $ whitespace s in
+    lift $ (, s') <$> readMaybe (unpack a)
 
 takeWord :: PushupsParser Text
 takeWord = Parser (return . T.span (/= ' ') . whitespace)

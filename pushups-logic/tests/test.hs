@@ -42,11 +42,11 @@ parsingTests = testGroup "Parsing (checked by QuickCheck)"
 
     addEP :: Int -> Exercise -> String -> Property
     addEP amount exercise notes = (not (null notes) && amount > 0) ==>
-        runExceptT (runParser parseMsg $ T.pack $ "+" <> show amount <> " " <> show exercise <> " " <> notes) == Just (Right (AddExercise amount exercise $ T.pack (dropWhile (== ' ') notes)))
+        runExceptT (runParser parseMsg $ T.pack $ "+" <> show amount <> " " <> show exercise <> " " <> notes) == Just (Right (AddExercise (fromIntegral amount) exercise $ T.pack (dropWhile (== ' ') notes)))
 
     remvEP :: Int -> Exercise -> String -> Property
     remvEP amount exercise notes = (not (null notes) && amount > 0) ==>
-        runExceptT (runParser parseMsg $ T.pack $ "-" <> show amount <> " " <> show exercise <> " " <> notes) == Just (Right (RmExercise amount exercise $ T.pack (dropWhile (== ' ') notes)))
+        runExceptT (runParser parseMsg $ T.pack $ "-" <> show amount <> " " <> show exercise <> " " <> notes) == Just (Right (RmExercise (fromIntegral amount) exercise $ T.pack (dropWhile (== ' ') notes)))
 
 instance Arbitrary Exercise where
     arbitrary = elements [Pushups, Abs, Squats, Kilometers]
@@ -59,6 +59,7 @@ unitTests session = testGroup "Pushups Bot Unit Tests"
     , testCase "Set Master Username" (runPushupsTest session test_setMasterUsername)
     , testCase "Set Profile Picture" (runPushupsTest session test_setProfilePic)
     , testCase "Linking" (runPushupsTest session test_linking)
+    , testCase "Create Challenge" (runPushupsTest session test_createChallenge)
     ]
 
 deriving instance Show ExercisesRecord
@@ -72,12 +73,13 @@ test_addExercise :: PushupsBotM IO ()
 test_addExercise = do
     test_activateCommander
     threadDelay 1000000            & liftIO
-    i <- randomRIO @Int (1, 201)   & liftIO
-    addExercise i Pushups "test user note"
-    addExercise i Pushups "test user note2"
-    addExercise i Pushups "test user note3"
-    addExercise i Pushups "test user note4"
-    addExercise i Pushups "test user note5"
+    i' <- randomRIO @Int (1, 201)   & liftIO
+    let ii = fromIntegral i'
+    addExercise ii Pushups "test user note"
+    addExercise ii Abs "test user note2"
+    addExercise ii Squats "test user note3"
+    i <- randomRIO @Float (1, 21)   & liftIO
+    addExercise i Kilometers "test user note5"
     return ()
 
 test_activateCommander :: PushupsBotM IO ()
@@ -92,12 +94,8 @@ test_setMasterUsername :: PushupsBotM IO ()
 test_setMasterUsername = do
     test_activateCommander
     threadDelay 1000000            & liftIO
-    i <- randomRIO @Int (1, 201)   & liftIO
+    i <- fromIntegral <$> randomRIO @Int (1, 201)   & liftIO
     (serverId, serverUserId) <- ask
-    -- TODO: Why do the following lines break RecordM (duplicate instances added??)
-    addExercise i Pushups "test user note"
-    threadDelay 1000000            & liftIO
-
     setMasterUsername ("newname" <> T.pack (show i))
     setMasterUsername ("newnameagain" <> T.pack (show i))
     threadDelay 1000000            & liftIO
@@ -131,4 +129,14 @@ test_linking = do
     threadDelay 1000000 & liftIO
     linkMasterUsername code2
     return ()
+
+test_createChallenge :: PushupsBotM IO ()
+test_createChallenge = do
+    test_activateCommander
+    threadDelay 1000000 & liftIO
+    session <- lift ask
+    i <- randomIO
+    createChallenge i Pushups Daily (Just "Comment")
+    return ()
+
 

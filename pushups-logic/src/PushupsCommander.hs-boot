@@ -1,6 +1,6 @@
 module PushupsCommander where
 
-type Amount = Int
+type Amount = Float
 data Exercise = Pushups | Abs | Squats | Kilometers
 data ServerPlan = Small | Medium | Large | Huge
 data TimeInterval = Daily | Weekly | Monthly | Yearly
