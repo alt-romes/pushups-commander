@@ -39,6 +39,7 @@ import Control.Concurrent (threadDelay)
 
 import Cob
 import Cob.RecordM
+import Cob.UserM
 import PushupsRecordM
 import Bots
 
@@ -67,12 +68,12 @@ data TimeInterval = Daily
                   deriving (Show, Eq)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (RecordM m) i [ChatBotCommand]
+pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (Cob m) i [ChatBotCommand]
 pushupsBot = Bot $ \m -> do
     command <- either throwError return $ fromMaybe (Right Ok) $ runExceptT $ runParser parseMsg (getContent m)
     flip runReaderT (getServerId m, getUserId m) $ runBot pushupsCommander command
 
-type PushupsBotM m = ReaderT (ServerIdentifier, ServerUsername) (RecordM m)
+type PushupsBotM m = ReaderT (ServerIdentifier, ServerUsername) (Cob m)
 
 pushupsCommander :: MonadIO m => Bot (PushupsBotM m) Command [ChatBotCommand]
 pushupsCommander = Bot $ \command -> do
@@ -130,6 +131,9 @@ activateCommander code = asks fst >>= \serverId -> lift do
     -- Validate code
     let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
     (id, _) <- find hasActivationCode serversRecords ?? throwError "Invalid activation code!" 
+
+    -- Create associated user
+    umCreateUser (UMUser ("pushups" <> show id) Nothing "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
 
     -- Activate server
     rmUpdateInstance id (serverIdentifier ?~ serverId)

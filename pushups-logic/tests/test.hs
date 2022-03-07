@@ -20,7 +20,7 @@ import Data.Ord
 
 import Cob
 import Cob.RecordM
-import Cob.RecordM.Testing
+import Cob.Testing
 import PushupsCommander
 import PushupsRecordM
 
@@ -67,7 +67,7 @@ deriving instance Show ExercisesRecord
 runPushupsTest :: CobSession -> PushupsBotM IO a -> IO a
 runPushupsTest session test = either assertFailure return =<< do
     i <- randomIO @Int
-    runRecordMTests session (runReaderT test ("teste-server" <> T.pack (show i), "teste-serveruser" <> T.pack (show i)))
+    runCobTests session (runReaderT test ("teste-server" <> T.pack (show i), "teste-serveruser" <> T.pack (show i)))
 
 test_addExercise :: PushupsBotM IO ()
 test_addExercise = do
