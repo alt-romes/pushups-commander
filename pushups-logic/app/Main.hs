@@ -36,11 +36,11 @@ cobClassf = Bot $ \m -> do
     classf :: [Classficação] <- rmDefinitionSearch_ (getContent m)
     pure [ReplyWith (T.pack (show classf))]
 
-type CobBot m i o = Bot (RecordM m) i o
+type CobBot m i o = Bot (Cob m) i o
 type CobChatBot = forall m i. (MonadIO m, ChatBotMessage i) => CobBot m i [ChatBotCommand]
 
 runCobBot :: Monad m => CobSession -> CobBot m i [ChatBotCommand] -> Bot m i [ChatBotCommand]
-runCobBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runRecordM session)
+runCobBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCob session)
 
 echoBot :: ChatBot
 echoBot = Bot (\m -> return [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)])

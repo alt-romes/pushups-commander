@@ -23,6 +23,7 @@ import Control.Monad.Reader
 import Control.Applicative ((<|>), empty)
 import Data.Maybe (isNothing, listToMaybe, fromMaybe)
 import Data.List (find)
+import Data.String (fromString)
 import Control.Lens ((^?), (^.), (.~), (?~))
 import Data.Function ((&))
 import Data.Functor ((<&>))
@@ -50,7 +51,6 @@ data Exercise = Pushups | Abs | Squats | Kilometers deriving (Show, Eq)
 data ServerPlan = Small | Medium | Large | Huge deriving (Show)
 data Command = AddExercise Amount Exercise Text
              | RmExercise Amount Exercise Text
-             -- | QueryDatabase Target Exercise
              | Imperative ImperativeCommand
              | Ok
              deriving (Show, Eq)
@@ -60,6 +60,7 @@ data ImperativeCommand = ActivateCommander Text
                        | LinkMasterUsername Text
                        | GetLinkingCode
                        | CreateChallenge Amount Exercise TimeInterval Text
+                       | GetDashboard
                        deriving (Show, Eq)
 data TimeInterval = Daily
                   | Weekly
@@ -112,6 +113,10 @@ pushupsCommander = Bot $ \command -> do
                     createChallenge amount exercise interval (Just obs)
                     return [ ReplyWith "A challenge has been declared!" ]
 
+                GetDashboard -> do
+                    tok <- getDashboard
+                    return [ ReplyWith (fromString tok) ]
+
             Ok -> return [ ]
 
         where log = liftIO . TIO.putStrLn . pack . show
@@ -133,11 +138,20 @@ activateCommander code = asks fst >>= \serverId -> lift do
     (id, _) <- find hasActivationCode serversRecords ?? throwError "Invalid activation code!" 
 
     -- Create associated user
-    umCreateUser (UMUser ("pushups" <> show id) Nothing "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
+    umUser <- umCreateUser (UMUser ("pushups" <> show id) (Just "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+") "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
+    umAddUsersToGroup [umUser] (UMRef 131)
 
     -- Activate server
     rmUpdateInstance id (serverIdentifier ?~ serverId)
 
+
+getDashboard :: MonadIO m => PushupsBotM m String
+getDashboard = do
+    (_, ServerUsersRecord _ serverRef _) <- getOrCreateServerUser
+
+    -- Login with the server's associated user
+    umLogin ("pushups" <> show serverRef) "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+" & lift
+    
 
 setMasterUsername :: MonadIO m => Text -> PushupsBotM m UsersRecord
 setMasterUsername newName = do
@@ -257,8 +271,9 @@ parseMsg = takeHead >>= \case
         "setName"       -> SetMasterUsername  <$> parseNonEmptyWord
         "setProfilePic" -> SetProfilePicture  <$> parseNonEmptyWord
         "link"          -> LinkMasterUsername <$> parseNonEmptyWord
-        "getLinkCode"   -> return GetLinkingCode
         "challenge"     -> CreateChallenge    <$> takeFloat <*> parseExercise <*> parseInterval <*> takeRemaining
+        "getLinkCode"   -> return GetLinkingCode
+        "dashboard"     -> return GetDashboard
         _               -> failPParser
 
     parseExercise :: PushupsParser Exercise
