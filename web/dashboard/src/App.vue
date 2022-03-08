@@ -7,15 +7,26 @@ import GroupRecentActivity from './components/GroupRecentActivity.vue'
 import Heatmap from './components/Heatmap.vue'
 import LinesGraph from './components/LinesGraph.vue'
 
+import { useCookies } from "vue3-cookies";
+
 export default defineComponent({
+  setup() {
+    const { cookies } = useCookies();
+    return { cookies };
+  },
   components: { GroupAllActivity, GroupRecentActivity, Heatmap, LinesGraph },
+  created() {
+    let urlParams = new URLSearchParams(window.location.search);
+    let token = urlParams.get('token');
+    this.cookies.set('cobtoken', token);
+  },
   data() {
     return {
       allActivity: {
         pushups: fieldSum(35, "amount", "exercise_type:pushups"),
-        abs: definitionCount("ROMES Pushups Exercises"),
-        squats: definitionCount("ROMES Pushups Exercises"),
-        kilometers: definitionCount("ROMES Pushups Exercises")
+        abs: fieldSum(35, "amount", "exercise_type:abs"),
+        squats: fieldSum(35, "amount", "exercise_type:squats"),
+        kilometers: fieldSum(35, "amount", "exercise_type:kilometers")
       },
       recentActivity: [
         {

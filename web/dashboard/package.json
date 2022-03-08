@@ -14,7 +14,8 @@
     "d3": "^7.3.0",
     "ramda": "^0.28.0",
     "vue": "^3.2.29",
-    "vue-chart-3": "^3.0.9"
+    "vue-chart-3": "^3.0.9",
+    "vue3-cookies": "^1.0.6"
   },
   "devDependencies": {
     "@types/node": "^16.11.22",
