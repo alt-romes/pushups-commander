@@ -1,3 +1,4 @@
 packages: /Users/romes/projects/cob
           /Users/romes/projects/bots
+          /Users/romes/projects/bots/bots-discord/
           ./pushups-logic.cabal

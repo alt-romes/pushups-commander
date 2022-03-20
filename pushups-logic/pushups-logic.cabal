@@ -27,14 +27,14 @@ executable pushups
     default-language: Haskell2010
     ghc-options:      -threaded -fllvm -rtsopts
     build-depends:
-        base ^>= 4.15.0.0,
+        base >= 4,
         text,
         bytestring,
         mtl,
         cob,
         bots,
+        bots-discord,
         pushups-logic
-
 
 library
     exposed-modules:  PushupsCommander,
@@ -43,7 +43,7 @@ library
     default-language: Haskell2010
     ghc-options:      -fllvm
     build-depends:
-        base ^>= 4.15.0.0,
+        base >= 4.14.0.0,
 
         text,
         bytestring,
@@ -54,26 +54,24 @@ library
         lens,
         aeson,
 
-        random ^>=1.2.1,
+        random,
 
-        cob^>=0.1.0.0,
-        bots^>=0.1.0.0,
+        cob>=0.1.0.0,
+        bots>=0.1.0.0,
 
-        http-conduit ^>=2.3.8,
-        http-types ^>=0.12.3,
+        http-conduit >=2.3.8,
+        http-types >=0.12.3,
 
         warp,
         wai,
         wai-extra,
-        servant^>=0.18.3,
+        servant>=0.18.3,
         servant-server,
 
-        async ^>=2.2.4,
+        async >=2.2.4,
         profunctors,
         cryptonite,
-        hex-text,
-
-        discord-haskell^>=1.11.0
+        hex-text
 
 test-suite test
   default-language: Haskell2010
