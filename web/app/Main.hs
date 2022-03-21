@@ -1,16 +1,26 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Control.Monad
-import Data.Text
+import Data.Text hiding (init)
 
+import Cob
+import Cob.RecordM
+import Cob.RecordM.TH
 import Reflex.Dom
 
-main :: IO ()
-main = mainWidgetWithHead headWidget rootWidget
-
 newtype Todo = Todo { todoText :: Text }
+mkRecord ''Todo "ROMES Todos" ["Todo"]
+
+main :: IO ()
+main = do
+    host     <- init <$> readFile "cob-host.secret"
+    cobToken <- init <$> readFile "cob-token.secret"
+    session  <- makeSession host cobToken
+    -- Right todos <- runCob session $ rmDefinitionSearch_ ("*" :: String)
+    mainWidgetWithHead headWidget (rootWidget [])
 
 headWidget :: MonadWidget t m => m ()
 headWidget = do
@@ -18,11 +28,11 @@ headWidget = do
     elAttr "meta" ("name" =: "viewport" <> "content" =: "width=device-width, initial-scale=1") blank
     elAttr "link" ("rel" =: "stylesheet" <> "href" =: "https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css") blank
 
-rootWidget :: MonadWidget t m => m ()
-rootWidget = elClass "section" "section" $ divClass "container has-text-centered" $ do
+rootWidget :: MonadWidget t m => [Todo] -> m ()
+rootWidget initTodos = elClass "section" "section" $ divClass "container has-text-centered" $ do
     elClass "h2" "title" $ text "Todos"
     newTodoEv <- newTodoForm
-    todosDyn <- foldDyn (:) [] newTodoEv
+    todosDyn <- foldDyn (:) initTodos newTodoEv
     el "hr" blank
     todoListWidget todosDyn
 
