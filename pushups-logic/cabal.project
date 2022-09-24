@@ -1,4 +1,7 @@
-packages: /Users/romes/projects/cob
-          /Users/romes/projects/bots
+source-repository-package
+    type: git
+    location: https://github.com/alt-romes/cob-hs.git
+
+packages: /Users/romes/projects/bots
           /Users/romes/projects/bots/bots-discord/
           ./pushups-logic.cabal

@@ -16,6 +16,8 @@ import Prelude hiding ((.))
 
 import System.Random.Stateful (uniformM, globalStdGen)
 
+import Control.Exception (SomeException)
+
 import Control.Category
 import Control.Monad.Identity (Identity)
 import Control.Monad.Reader
@@ -38,8 +40,9 @@ import Control.Monad.Trans.Except
 import Control.Concurrent (threadDelay)
 
 import Cob
-import Cob.RecordM
-import Cob.UserM
+import Cob.Ref
+import Cob.RecordM.Query
+import Cob.UserM.Entities
 import PushupsRecordM
 import Bots
 
@@ -48,17 +51,17 @@ import Bots
 type Amount = Float
 data Exercise = Pushups | Abs | Squats | Kilometers deriving (Show, Eq)
 data ServerPlan = Small | Medium | Large | Huge deriving (Show)
-data Command = AddExercise Amount Exercise Text
-             | RmExercise Amount Exercise Text
-             | Imperative ImperativeCommand
+data Command = AddExercise !Amount !Exercise !Text
+             | RmExercise !Amount !Exercise !Text
+             | Imperative !ImperativeCommand
              | Ok
              deriving (Show, Eq)
-data ImperativeCommand = ActivateCommander Text
-                       | SetMasterUsername Text
-                       | SetProfilePicture Text
-                       | LinkMasterUsername Text
+data ImperativeCommand = ActivateCommander !Text
+                       | SetMasterUsername !Text
+                       | SetProfilePicture !Text
+                       | LinkMasterUsername !Text
                        | GetLinkingCode
-                       | CreateChallenge Amount Exercise TimeInterval Text
+                       | CreateChallenge !Amount !Exercise !TimeInterval !Text
                        | GetDashboard
                        deriving (Show, Eq)
 data TimeInterval = Daily
@@ -68,14 +71,14 @@ data TimeInterval = Daily
                   deriving (Show, Eq)
 data Target = Today | All | Server deriving (Show, Eq)
 
-pushupsBot :: (MonadIO m, ChatBotMessage i) => Bot (Cob m) i [ChatBotCommand]
+pushupsBot :: ChatBotMessage i => Bot Cob i [ChatBotCommand]
 pushupsBot = Bot $ \m -> do
-    command <- either throwError return $ fromMaybe (Right Ok) $ runExceptT $ runParser parseMsg (getContent m)
+    command <- either fail return $ fromMaybe (Right Ok) $ runExceptT $ runParser parseMsg (getContent m)
     flip runReaderT (getServerId m, getUserId m) $ runBot pushupsCommander command
 
-type PushupsBotM m = ReaderT (ServerIdentifier, ServerUsername) (Cob m)
+type PushupsBotM = ReaderT (ServerIdentifier, ServerUsername) Cob
 
-pushupsCommander :: MonadIO m => Bot (PushupsBotM m) Command [ChatBotCommand]
+pushupsCommander :: Bot PushupsBotM Command [ChatBotCommand]
 pushupsCommander = Bot $ \command -> do
         log command
         case command of
@@ -121,104 +124,115 @@ pushupsCommander = Bot $ \command -> do
         where log = liftIO . TIO.putStrLn . pack . show
 
 
-addExercise :: MonadIO m => Amount -> Exercise -> Text -> PushupsBotM m (Ref ExercisesRecord)
+addExercise :: Amount -> Exercise -> Text -> PushupsBotM (Ref ExercisesRecord)
 addExercise amount exercise obs = do
     (serverUserRef, _) <- getOrCreateServerUser
-    rmAddInstance (ExercisesRecord serverUserRef amount exercise (Just obs)) & lift
+    add (ExercisesRecord serverUserRef amount exercise (Just obs)) & lift
 
 
-activateCommander :: MonadIO m => Text -> PushupsBotM m ServersRecord
+activateCommander :: Text -> PushupsBotM ServersRecord
 activateCommander code = asks fst >>= \serverId -> lift do
     
-    serversRecords <- rmDefinitionSearch ("activation_code:" <> code)
+    serversRecords <- search (byText $ "activation_code:" <> code)
 
     -- Validate code
     let hasActivationCode (_, serverRecord) = serverRecord^.activationCode == code && isNothing (serverRecord^.serverIdentifier)
-    (id, _) <- find hasActivationCode serversRecords ?? throwError "Invalid activation code!" 
+    case find hasActivationCode serversRecords of
+      Nothing -> fail "Invalid activation code!" 
+      Just  (id, _) -> do
 
-    -- Create associated user
-    umUser <- umCreateUser (UMUser ("pushups" <> show id) (Just "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+") "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
-    umAddUsersToGroup [umUser] (UMRef 131)
+        -- Create associated user
+        umUser <- createUser (User ("pushups" <> show id) (Just "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+") "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
+        addToGroup [umUser] (Ref Nothing 131)
 
-    -- Activate server
-    rmUpdateInstance id (serverIdentifier ?~ serverId)
+        -- Activate server
+        [(_,r)] <- updateInstances (byRef id) (serverIdentifier ?~ serverId)
+        pure r
 
 
-getDashboard :: MonadIO m => PushupsBotM m String
+getDashboard :: PushupsBotM String
 getDashboard = do
     (_, ServerUsersRecord _ serverRef _) <- getOrCreateServerUser
 
     -- Login with the server's associated user
-    umLogin ("pushups" <> show serverRef) "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+" & lift
+    login ("pushups" <> show serverRef) "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+" & lift
     
 
-setMasterUsername :: MonadIO m => Text -> PushupsBotM m UsersRecord
+setMasterUsername :: Text -> PushupsBotM UsersRecord
 setMasterUsername newName = do
     -- Updated name can't already be in use
-    existingNames <- rmDefinitionSearch_ @UsersRecord ("master_username:" <> newName) & lift
+    existingNames <- search @UsersRecord (byText $ "master_username:" <> newName) & lift
     unless (null existingNames) $
-        throwError ("Couldn't set username to " <> show newName <> " because that username is already in use.")
+        fail ("Couldn't set username to " <> show newName <> " because that username is already in use.")
 
     (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
-    rmUpdateInstance userId (masterUsername .~ newName) & lift
+    [(_,u)] <- updateInstances (byRef userId) (masterUsername .~ newName) & lift
+    pure u
 
 
-setProfilePic :: MonadIO m => Text -> PushupsBotM m UsersRecord
+setProfilePic :: Text -> PushupsBotM UsersRecord
 setProfilePic url = do
     (_, s@(ServerUsersRecord userId _ _)) <- getOrCreateServerUser
-    rmUpdateInstance userId (profilePicture ?~ url) & lift
+    [(_,u)] <- updateInstances (byRef userId) (profilePicture ?~ url) & lift
+    pure u
 
 
-linkMasterUsername :: MonadIO m => Text -> PushupsBotM m Text
+linkMasterUsername :: Text -> PushupsBotM Text
 linkMasterUsername code = do
     -- Find user record with linking code
-    (linkUserRef, UsersRecord name _ _) <- rmDefinitionSearch code ??? throwError "Invalid linking code!" & lift
+    [(linkUserRef, UsersRecord name _ _)] <- lift $ search (byText code) `catch` \(e :: SomeException) -> fail "Invalid linking code!"
 
     -- Set this server user's master user to user with given linking code
     (serverUserRef, _) <- getOrCreateServerUser
-    rmUpdateInstance serverUserRef (userId .~ linkUserRef) &lift
+    updateInstances (byRef serverUserRef) (userId .~ linkUserRef) &lift
 
     -- Clear linking code in user record
-    rmUpdateInstance linkUserRef (linkingCode ?~ "") &lift
+    updateInstances (byRef linkUserRef) (linkingCode ?~ "") &lift
 
     return name
 
 
-getLinkingCode :: MonadIO m => PushupsBotM m Text
+getLinkingCode :: PushupsBotM Text
 getLinkingCode = do
     (_, ServerUsersRecord userId _ _) <- getOrCreateServerUser
 
     -- Set linking code in this server user's master user
     randomCode <- T.pack . show . abs <$> uniformM @Int globalStdGen
-    rmUpdateInstance userId (linkingCode ?~ randomCode) & lift
+    updateInstances (byRef userId) (linkingCode ?~ randomCode) & lift
 
     return randomCode
 
 
-createChallenge :: MonadIO m => Amount -> Exercise -> TimeInterval -> Maybe Text -> PushupsBotM m (Ref ChallengesRecord)
+createChallenge :: Amount -> Exercise -> TimeInterval -> Maybe Text -> PushupsBotM (Ref ChallengesRecord)
 createChallenge amount exercise timeInterval obs = asks fst >>= \serverId -> lift do
-    (serverRef, ServersRecord {}) <- rmDefinitionSearch ("server:" <> serverId) ??? throwError "Server hasn't been activated yet!"
-    rmAddInstance (ChallengesRecord serverRef amount exercise timeInterval obs)
+    serverRef <- (do [(serverRef, ServersRecord {})] <- search (byText $ "server:" <> serverId); pure serverRef) `catch` \(e :: SomeException) -> fail "Server hasn't been activated yet!"
+    add (ChallengesRecord serverRef amount exercise timeInterval obs)
 
 
 
 -- The ServerUsers record in this context will only be created by
 -- addExercise if needed. If it isn't needed, the creation code won't run
 -- (see rmGetOrAddInstanceM)
-getOrCreateServerUser :: MonadIO m => PushupsBotM m (Ref ServerUsersRecord, ServerUsersRecord)
+getOrCreateServerUser :: PushupsBotM (Ref ServerUsersRecord, ServerUsersRecord)
 getOrCreateServerUser = ask >>= \(serverId :: ServerIdentifier, serverUserId) -> lift do
-    (rmDefinitionSearch ("server_reference:" <> serverId <> " server_username:" <> serverUserId) ?!) <|> do
+  search (byText $ "server_reference:" <> serverId <> " server_username:" <> serverUserId) >>= \case
+    x:_ -> pure x
+    [] -> do
         -- Only create server user if server has been activated
-        (serverRef, ServersRecord _ _ _ serverPlan) <- rmDefinitionSearch ("server:" <> serverId) ??? throwError "Server hasn't been activated yet!"
+        (serverRef, ServersRecord _ _ _ serverPlan) <- search (byText $ "server:" <> serverId) >>= \case
+                                                          x:_ -> pure x
+                                                          []  -> fail "Server hasn't been activated yet!"
 
         -- Only create server user if server hasn't exceeded the plan's user limit
-        amount <- rmDefinitionCount @ServerUsersRecord ("server:" <> show serverRef)
+        amount <- count @ServerUsersRecord (byStr $ "server:" <> show serverRef)
         when (amount `exceeds` serverPlan) $
-            throwError ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map Char.toLower . show) serverPlan <> ")")
+            fail ("Server has reached its max user capacity (" <> show (capacity serverPlan) <> ") for its current plan (" <> (map Char.toLower . show) serverPlan <> ")")
 
         -- Create a new server user and a new master user (one doesn't exist yet)
-        newUserRef <- fst <$> (rmDefinitionSearch ("master_username:" <> serverUserId) ?!) <|> rmAddInstanceSync (UsersRecord serverUserId Nothing Nothing)
-        ref <- rmAddInstanceSync (ServerUsersRecord newUserRef serverRef serverUserId)
+        newUserRef <- search (byText $ "master_username:" <> serverUserId) >>= \case
+                        []       -> addSync (UsersRecord serverUserId Nothing Nothing)
+                        (ur,_):_ -> pure ur
+        ref <- addSync (ServerUsersRecord newUserRef serverRef serverUserId)
         return (ref, ServerUsersRecord newUserRef serverRef serverUserId)
     where
         amount `exceeds` serverPlan = amount >= capacity serverPlan

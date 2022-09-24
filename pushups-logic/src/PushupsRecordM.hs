@@ -11,6 +11,7 @@ import Data.Aeson
 import {-# SOURCE #-} PushupsCommander (Amount, Exercise(..), ServerPlan(..), TimeInterval(..))
 
 import Cob
+import Cob.Ref
 import Cob.RecordM
 import Cob.RecordM.TH
 

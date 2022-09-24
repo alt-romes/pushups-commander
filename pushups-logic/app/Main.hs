@@ -9,11 +9,15 @@ import qualified Data.Text.IO as TIO (readFile)
 import qualified Data.Text as T (pack, unpack, init, Text)
 import Data.ByteString (ByteString(..))
 import Data.Text.Encoding (encodeUtf8)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (unless, (>=>))
 
+import Control.Exception (SomeException)
+
 import Cob
+import Cob.Session
 import Cob.RecordM
+import Cob.RecordM.Query
 import Cob.RecordM.TH
 import Bots
 import Bots.SlackBot
@@ -23,24 +27,23 @@ import PushupsCommander
 
 ---- Classificações
 
-data Classficação = Classficação { thisMonth :: String
-                                 , fullName  :: String }
-mkRecord ''Classficação "CASA Finanças Classificação" ["This Month", "Full Name"]
+-- data Classficação = Classficação { thisMonth :: String
+--                                  , fullName  :: String }
+-- mkRecord ''Classficação "CASA Finanças Classificação" ["This Month", "Full Name"]
 
-instance Show Classficação where
-    show (Classficação m f) = f <> ": " <> m <> "\n"
+-- instance Show Classficação where
+--     show (Classficação m f) = f <> ": " <> m <> "\n"
 
--- cobClassf = Bot (rmDefinitionSearch_ . getContent >=> pure . (:[]) . ReplyWith . T.pack . show @[Classficação])
-cobClassf :: (MonadIO m, ChatBotMessage i) => CobBot m i [ChatBotCommand]
-cobClassf = Bot $ \m -> do
-    classf :: [Classficação] <- rmDefinitionSearch_ (getContent m)
-    pure [ReplyWith (T.pack (show classf))]
+-- -- cobClassf = Bot (rmDefinitionSearch_ . getContent >=> pure . (:[]) . ReplyWith . T.pack . show @[Classficação])
+-- cobClassf :: (ChatBotMessage i) => CobBot i [ChatBotCommand]
+-- cobClassf = Bot $ \m -> do
+--     classf :: [Classficação] <- rmDefinitionSearch_ (getContent m)
+--     pure [ReplyWith (T.pack (show classf))]
 
-type CobBot m i o = Bot (Cob m) i o
-type CobChatBot = forall m i. (MonadIO m, ChatBotMessage i) => CobBot m i [ChatBotCommand]
+type CobChatBot = forall i. ChatBotMessage i => Bot Cob i [ChatBotCommand]
 
-runCobBot :: Monad m => CobSession -> CobBot m i [ChatBotCommand] -> Bot m i [ChatBotCommand]
-runCobBot session = transformBot (fmap (either ((:[]) . ReplyWith . T.pack) id) . runCob session)
+runCobBot :: MonadIO m => CobSession -> Bot Cob i [ChatBotCommand] -> Bot m i [ChatBotCommand]
+runCobBot session = transformBot (liftIO . runCob session . (`catch` (pure . (:[]) . ReplyWith . T.pack . show @SomeException)))
 
 echoBot :: ChatBot
 echoBot = Bot (\m -> return [ReactWith "slight_smile", ReplyWith ("Echo: " <> getContent m)])
@@ -66,7 +69,7 @@ mkRecord ''PushupsRecord "ROMES Pushups Commander" ["Name", "Amount"]
 
 pushups :: CobChatBot
 pushups = Bot $ \msg -> do
-    ps :: [PushupsRecord] <- rmDefinitionSearch_ (getUserId msg)
+    ps :: [PushupsRecord] <- search_ (byText $ getUserId msg)
     return [ReplyWith (T.pack $ show ps)]
 
 main :: IO ()
@@ -84,7 +87,7 @@ main = do
         
         (runCobBot session pushupsBot)
 
-        [ slackServer (slackToken, slackSigningToken, tlsmanager session)
+        [ slackServer (slackToken, slackSigningToken, tlsManagerFrom session)
         , discordServer discordToken
         , haskelineServer ]
 
