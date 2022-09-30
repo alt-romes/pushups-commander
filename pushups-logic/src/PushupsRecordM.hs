@@ -1,8 +1,8 @@
 {-# LANGUAGE LambdaCase, TemplateHaskell, OverloadedStrings #-}
 module PushupsRecordM where
 
+import Lens.Micro.TH
 import Control.Monad
-import Control.Lens hiding ((.=))
 import Data.Maybe
 import Data.Text
 

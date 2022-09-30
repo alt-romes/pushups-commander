@@ -9,6 +9,7 @@
 <body>
     <section class="section m-0 p-0">
       <!-- Navbar {{{ -->
+
       <div class="container">
         <div class="columns">
           <div class="column is-10 is-offset-1">
@@ -47,6 +48,69 @@
                 </div>
               </div>
             </nav>
+          </div>
+        </div>
+      </div>
+      <!-- }}} -->
+    </section>
+    <section class="section m-0 p-0">
+      <!-- How it works {{{ -->
+      <div class="container">
+        <div class="columns">
+          <div class="column is-10 is-offset-1">
+            <div class="hero is-medium">
+              <div class="hero-body px-5 py-6">
+                <div class="columns">
+                  <div class="column is-6">
+                    <p class="title is-size-3">A bridge between your chatroom and your workout app</p>
+                  </div>
+                </div>
+                <div class="columns">
+                  <div class="column is-6 is-size-5">
+                    <!-- <h1 class="title has-text-weight-bold mb-6"> -->
+                    <!--   Learning to Flex -->
+                    <!-- </h1> -->
+                    <!-- <p class="subtitle is-size-4">
+                      <u>Getting Started</u>
+                    </p> -->
+                    <p>The <strong>Workout Bot</strong> is a chat bot.</p>
+                    <p>After joining your group, it'll track the exercise you log onto the chat.</p>
+                    <br>
+                    <p>Only one user has to pay for and activate the bot as described in the documentation.
+                      Afterwards, any group member can type right away <strong id="command-example">+50 pushups</strong> to begin.</p>
+                    <br>
+                    <p>All exercise data can be viewed through the group's dashboard.</p>
+                    <br>
+                    <p>Group members can create <strong>challenges</strong> for the group.</p>
+                    <br>
+
+                    <!-- <p class="title is-size-4">Steps to take:</p>
+                    <ul>
+                      <li>Activate the bot in your server</li>
+                      <li>Send a chat message with your training</li>
+                      <li>Motivate your friends or coworkers</li>
+                      <li>View individual and group data in a dashboard</li>
+                    </ul> -->
+
+                    <script>
+                      let numbers = [95, 80, 65, 50, 25, 20, 10]
+                      let exercises = ["pushups", "abs", "squats"]
+                      let x = document.getElementById("command-example");
+                      window.setInterval(function(){
+                        x.innerHTML = "+" + numbers[Math.floor(Math.random()*numbers.length)] + " " + exercises[Math.floor(Math.random()*exercises.length)]
+                      }, 5000);
+                    </script>
+                  </div>
+                  <div class="column is-6 is-size-5">
+                    <p class="title is-size-4"></p>
+                    <p class="title is-size-4">Not a one-size-fits-all</p>
+                    <p>The Workout Bot doesn't try to satisfy all needs. In particular, if you want to track in detail all your gym workouts, this is probably not for you.</p>
+                    <br>
+                    <p><strong>Our main take</strong> is that </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

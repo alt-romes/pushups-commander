@@ -25,7 +25,7 @@ import Control.Applicative ((<|>), empty)
 import Data.Maybe (isNothing, listToMaybe, fromMaybe)
 import Data.List (find)
 import Data.String (fromString)
-import Control.Lens ((^?), (^.), (.~), (?~))
+import Lens.Micro ((^?), (^.), (.~), (?~))
 import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Bifunctor (first, second)
@@ -143,7 +143,7 @@ activateCommander code = asks fst >>= \serverId -> lift do
 
         -- Create associated user
         umUser <- createUser (User ("pushups" <> show id) (Just "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+") "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
-        addToGroup [umUser] (Ref Nothing 131)
+        addToGroup [umUser] (Ref Nothing 131) -- FUNC ROMES Pushups Group Share
 
         -- Activate server
         [(_,r)] <- updateInstances (byRef id) (serverIdentifier ?~ serverId)
