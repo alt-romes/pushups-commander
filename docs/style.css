@@ -6,3 +6,10 @@
         margin-bottom: -8em;
     }
 }
+
+html,
+body {
+  height: 100%;
+  overflow-x: hidden;
+  transform: translate3d(0, 0, 0);
+}
