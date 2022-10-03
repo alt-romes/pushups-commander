@@ -60,8 +60,8 @@
           <div class="column is-10 is-offset-1">
             <div class="hero is-medium">
               <div class="hero-body px-5 py-6">
-                <div class="columns">
-                  <div class="column is-6 is-size-5">
+                <div class="columns is-multiline">
+                  <div class="column is-half is-size-5">
                     <!-- <p class="title is-size-3">A bridge between your chatroom and your workout app</p> -->
                     <p class="title is-size-3">Getting Started</p>
                     <p>
@@ -101,19 +101,112 @@
                     <!-- <br> -->
                     <!-- <p>Group members can create <strong>challenges</strong> for the group.</p> -->
                     <!-- <br> -->
-                    <br>
                     
                   </div>
-                  <div class="column is-6 is-size-5">
-                    <p class="title is-size-3">Using the bot</p>
-                    <p>The core functionality of the bot is tracking exercise
-                        through the chat room. To add an exercise one just has to
-                        type <code>+25 pushups</code> to add 25 push-ups. That’s the
-                        simple idea</p>
+                  <div class="column is-half is-size-5">
+                    <p class="title is-size-3">Track your exercise</p>
+                    <p>The core functionality of the bot is <strong>tracking exercise
+                        through the chat room</strong>. To add an exercise send
+                    a message with the format <code>+AMOUNT EXERCISE</code> to
+                    register the exercise with the given amount. For example,
+                    one might write <code>+25 pushups</code> to register 25
+                    pushups, or similarly <code>+3.2 km</code> to add a run.</p>
+                    <br>
+                    
+                    <p>
+                        By default, simple exercises such as
+                        <code>pushups</code>, <code>abs</code>,
+                        <code>squats</code> and <code>km running</code> are
+                        available (and the full list is here). Attempts to
+                        register an exercise which doesn’t exist will fail, but
+                        your server can make new exercises available.
+                    </p>
+                    <br>
+                    <p>
+                        You can, optionally, add the unit and a comment to each
+                        exercise submission — you can note down, e.g., the time
+                        you took, the number of repetitions, or more
+                        information: <code>+5.3 km running (in 35
+                        minutes)</code>, or <code>+1200 meters swimming (crawl)
+                        </code>.
+                    </p>
+                    <br>
+                    
+                    <p>The full syntax is <code>+AMOUNT [UNIT] EXERCISE [COMMENT]</code>.</p>
+                    
                   </div>
-                </div>
-                <div class="columns">
-                  <div class="column is-6 is-size-5">
+                  <div class="column is-half is-size-5">
+                    <p class="title is-size-3">Creating custom exercises</p>
+                    <p>
+                        To ensure no nonsense exercises are created, only the
+                        user who activated the bot has the ability to create
+                        new exercises. To do so, they have to send a message
+                        with the format <code>!new EXERCISE_NAME [unit type]
+                            [muscle group]</code>, in which both the units and
+                        muscle group are optional.
+                    </p>
+                    <br>
+                    
+                    <p>
+                        For example, one might create the exercise
+                        <strong>swimming</strong> measured in
+                        <strong>meters</strong> with <code>!new swimming
+                        meters</code>, and any user can register it with
+                        <code>+1200 meters swimming</code>, or just (because it’s
+                        implicitly in meters) <code>+1200 swimming</code>.
+                    </p>
+
+                    <br>
+                    
+                    <p class="title is-size-3">Challenges</p>
+
+                    <p>
+                        The user who activated the bot can create group-wide
+                        challenges by sending the message <code>!challenge
+                        AMOUNT EXERCISE TIME_INTERVAL [COMMENT]</code>. A
+                        challenge is a quota that ought to be fulfilled by
+                        group members taking the challenge.
+                    </p>
+                    <br>
+                    
+                    <p>
+                        This could be, for example, the goal of doing 100
+                        pushups every day. One could create said challenge with
+                        <code>!challenge 100 pushups daily</code>.
+                    </p>
+                    
+                  </div>
+                  <div class="column is-half is-size-5">
+                    <p class="title is-size-3">Dashboards</p>
+                    <p>It would be pretty pointless to track your exercise if
+                        you couldn't see the data afterwards. In a group chat
+                        with an activated bot, you can ask for a link to the
+                        group dashboard with <code>!dashboard group</code>.
+                    </p>
+                    <br>
+                    <p>
+                        In the <strong>group's dashboard</strong> you have
+                        multiple data graphs showing progress and activity
+                        overtime, exercise heatmaps, progress on challenges,
+                        leaderboards featuring the group members, and cummulative
+                        amounts of exercises for the whole group.</p>
+                    <br>
+                    <p>
+                        In your <strong>user dashboard</strong>, which you get
+                        to by sending the message <code>!dashboard</code>,
+                        features similar data visualizations as the group
+                        dashboard, but only containing your individual
+                        exercises.
+                    </p>
+                    <p>
+                        Both dashboards are read-only and can be shared to
+                        outsiders not using the bot by simply sharing the link.
+                        The group dashboard's link is sent to the group chat on
+                        request, while your individual dashboard is sent
+                        privately to your private messages.
+                    </p>
+                  </div>
+                  <div class="column is-half is-size-5">
                     <p class="title is-size-3">Linking your account on a new server</p>
                     <p>
                         Imagine the following scenario: you have started using
@@ -152,6 +245,12 @@
                         not to add exercises to the new server before linking
                         your account.
                     </p>
+                  </div>
+                  <div class="column is-half is-size-5">
+                    <p class="title is-size-3">FAQ</p>
+                    <p>Something missing? Do let me know on the <a
+                            href="https://github.com/alt-romes/pushups-commander/issues">issue
+                            tracker</a> or through my e-mail, rodrigo.m.mesquita()gmail.com.</p>
                   </div>
                 </div>
               </div>
