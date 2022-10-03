@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fitness/Workout Bot</title>
+    <link rel="stylesheet" href="style.css" media="all">
+</head>
+<body>
+    <section class="section m-0 p-0">
+      <!-- Navbar {{{ -->
+      <div class="container">
+        <div class="columns">
+          <div class="column is-10 is-offset-1">
+            <nav class="navbar my-5" role="navigation" aria-label="main navigation">
+              <div class="navbar-brand">
+                <a class="navbar-item" href="index.html">
+                  <p class="block is-size-5 has-text-weight-bold">
+                    Workout Bot
+                  </p>
+                </a>
+
+                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navMenu">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </a>
+              </div>
+
+              <div class="navbar-menu" id="navMenu">
+                <div class="navbar-start">
+
+                </div>
+
+                <div class="navbar-end">
+                  <div class="navbar-item">
+                    <div class="buttons">
+                      <a class="button is-dark has-text-weight-bold" href="pricing.html">
+                        Pricing
+                      </a>
+                      <a class="button is-light has-text-weight-bold" href="documentation.html">
+                        Documentation
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <script>
+                // Navbar
+                document.addEventListener('DOMContentLoaded',()=>{const $navbarBurgers=Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'),0);$navbarBurgers.forEach(el=>{el.addEventListener('click',()=>{const target=el.dataset.target;const $target=document.getElementById(target);el.classList.toggle('is-active');$target.classList.toggle('is-active')})})})
+              </script>
+            </nav>   
+          </div>
+        </div>
+      </div>
+      <!-- }}} -->
+    </section>
+
+    <section class="section m-0 p-0">
+      <!-- How it works {{{ -->
+      <div class="container">
+        <div class="columns">
+          <div class="column is-10 is-offset-1">
+            <div class="hero is-medium">
+              <div class="hero-body px-5 py-6">
+                <div class="columns is-multiline">
+                  <div class="column is-offset-2 is-8 is-size-5">
+                    <p class="title is-size-3">Join the Waitlist</p>
+                    <p>Not everything is ready just yet. If you join the the waitlist you will receive <em>one</em> e-mail when the <strong>Workout Bot</strong> is launched.
+                    </p>
+                    <br>
+                    
+                    <!-- Begin Mailchimp Signup Form -->
+                    <div id="mc_embed_signup">
+                        <form action="https://github.us10.list-manage.com/subscribe/post?u=4591933b7a190aaafe06e201a&amp;id=46c7232478&amp;f_id=00e0c6e5f0" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_self">
+                            <div id="mc_embed_signup_scroll">
+                                <!-- <div class="indicates-required"><span class="has-text-danger">*</span> indicates required</div> -->
+                                <div class="mc-field-group field">
+                                    <label class="label" for="mce-EMAIL">Email Address  <span class="has-text-danger">*</span>
+                                    </label>
+                                    <input type="email" value="" name="EMAIL" class="required email input" id="mce-EMAIL" required>
+                                    <span id="mce-EMAIL-HELPERTEXT" class="helper_text"></span>
+                                </div>
+                                <div id="mce-responses" class="clear foot">
+                                    <div class="response" id="mce-error-response" style="display:none"></div>
+                                    <div class="response" id="mce-success-response" style="display:none"></div>
+                                </div>    <!-- real people should not fill this in and expect good things - do not remove this or risk form bot signups-->
+                                <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_4591933b7a190aaafe06e201a_46c7232478" tabindex="-1" value=""></div>
+                                <div class="optionalParent">
+                                    <div class="clear foot field is-grouped">
+                                        <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+                                        <p class="brandingLogo"><a href="http://eepurl.com/iav5tP" title="Mailchimp - email marketing made easy and fun"><img src="https://eep.io/mc-cdn-images/template_images/branding_logo_text_dark_dtp.svg"></a></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!--End mc_embed_signup-->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- }}} -->
+    </section>
+</body>
+</html>
+

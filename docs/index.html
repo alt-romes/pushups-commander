@@ -52,27 +52,8 @@
                 </div>
               </div>
               <script>
-                document.addEventListener('DOMContentLoaded', () => {
-
-                  // Get all "navbar-burger" elements
-                  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
-
-                  // Add a click event on each of them
-                  $navbarBurgers.forEach( el => {
-                    el.addEventListener('click', () => {
-
-                      // Get the target from the "data-target" attribute
-                      const target = el.dataset.target;
-                      const $target = document.getElementById(target);
-
-                      // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
-                      el.classList.toggle('is-active');
-                      $target.classList.toggle('is-active');
-
-                    });
-                  });
-
-                });
+                // Navbar
+                document.addEventListener('DOMContentLoaded',()=>{const $navbarBurgers=Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'),0);$navbarBurgers.forEach(el=>{el.addEventListener('click',()=>{const target=el.dataset.target;const $target=document.getElementById(target);el.classList.toggle('is-active');$target.classList.toggle('is-active')})})})
               </script>
             </nav>   
           </div>
@@ -101,8 +82,8 @@
                       discord server or slack group
                     </p>
                     <div class="buttons">
-                      <!-- <a class="button is-success has-text-weight-bold" href="">Get started for 4€ / year</a> -->
-                      <a class="button is-success has-text-weight-bold" href="">Join the waitlist</a>
+                      <!-- <a class="button is-success has-text-weight-bold" href="">Get started for 9.90€ / year</a> -->
+                      <a class="button is-success has-text-weight-bold" href="waitlist.html">Join the waitlist</a>
                     </div>
                   </div>
                   <div class="column is-6">
@@ -425,7 +406,7 @@
                     <p>After joining your group, it'll track the exercises you log onto the chat, provide shareable links to both individual and group-wide workout dashboards, allow the creation of <strong>challenges</strong>, <a href="documentation.html">and more</a>.
                     </p>
                     <br>
-                    <p>Only one user has to pay for and activate the bot as described in the documentation.
+                    <p>Only one user <a href="pricing.html">has to pay</a> for and activate the bot as described in the documentation.
                       Afterwards, any group member can type right away <code id="command-example">+50 pushups</code> to begin.</p>
                     <!-- <br>
                     <p>All exercise data can be viewed through the group's dashboard.</p>
@@ -470,6 +451,7 @@
       </div>
       <!-- }}} -->
     </section>
+
   </body>
 </html>
 
