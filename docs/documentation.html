@@ -9,7 +9,6 @@
 <body>
     <section class="section m-0 p-0">
       <!-- Navbar {{{ -->
-
       <div class="container">
         <div class="columns">
           <div class="column is-10 is-offset-1">
@@ -22,14 +21,14 @@
                   <!-- <img src="https://bulma.io/images/bulma-logo.png" width="112" height="28"> -->
                 </a>
 
-                <!-- <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="??"> -->
-                <!--     <span aria-hidden="true"></span> -->
-                <!--     <span aria-hidden="true"></span> -->
-                <!--     <span aria-hidden="true"></span> -->
-                <!-- </a> -->
+                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navMenu">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </a>
               </div>
 
-              <div class="navbar-menu">
+              <div class="navbar-menu" id="navMenu">
                 <div class="navbar-start">
 
                 </div>
@@ -37,8 +36,12 @@
                 <div class="navbar-end">
                   <div class="navbar-item">
                     <div class="buttons">
-                      <a class="button is-dark has-text-weight-bold" href="dashboard.html">
-                        Dashboard
+                      <!-- <a class="button is-light has-text-weight-bold" href="documentation.html"> -->
+                      <!--   Pricing -->
+                      <!-- </a> -->
+                      <a class="button is-dark has-text-weight-bold" href="pricing.html">
+                        <!-- Dashboard -->
+                        Pricing
                       </a>
                       <a class="button is-light has-text-weight-bold" href="documentation.html">
                         Documentation
@@ -47,12 +50,36 @@
                   </div>
                 </div>
               </div>
-            </nav>
+              <script>
+                document.addEventListener('DOMContentLoaded', () => {
+
+                  // Get all "navbar-burger" elements
+                  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+
+                  // Add a click event on each of them
+                  $navbarBurgers.forEach( el => {
+                    el.addEventListener('click', () => {
+
+                      // Get the target from the "data-target" attribute
+                      const target = el.dataset.target;
+                      const $target = document.getElementById(target);
+
+                      // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+                      el.classList.toggle('is-active');
+                      $target.classList.toggle('is-active');
+
+                    });
+                  });
+
+                });
+              </script>
+            </nav>   
           </div>
         </div>
       </div>
       <!-- }}} -->
     </section>
+
     <section class="section m-0 p-0">
       <!-- How it works {{{ -->
       <div class="container">

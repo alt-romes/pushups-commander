@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fitness/Workout Bot</title>
+    <link rel="stylesheet" href="style.css" media="all">
+</head>
+<body>
+    <section class="section m-0 p-0">
+      <!-- Navbar {{{ -->
+      <div class="container">
+        <div class="columns">
+          <div class="column is-10 is-offset-1">
+            <nav class="navbar my-5" role="navigation" aria-label="main navigation">
+              <div class="navbar-brand">
+                <a class="navbar-item" href="index.html">
+                  <p class="block is-size-5 has-text-weight-bold">
+                    Workout Bot
+                  </p>
+                  <!-- <img src="https://bulma.io/images/bulma-logo.png" width="112" height="28"> -->
+                </a>
+
+                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navMenu">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </a>
+              </div>
+
+              <div class="navbar-menu" id="navMenu">
+                <div class="navbar-start">
+
+                </div>
+
+                <div class="navbar-end">
+                  <div class="navbar-item">
+                    <div class="buttons">
+                      <!-- <a class="button is-light has-text-weight-bold" href="documentation.html"> -->
+                      <!--   Pricing -->
+                      <!-- </a> -->
+                      <a class="button is-dark has-text-weight-bold" href="pricing.html">
+                        <!-- Dashboard -->
+                        Pricing
+                      </a>
+                      <a class="button is-light has-text-weight-bold" href="documentation.html">
+                        Documentation
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <script>
+                document.addEventListener('DOMContentLoaded', () => {
+
+                  // Get all "navbar-burger" elements
+                  const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+
+                  // Add a click event on each of them
+                  $navbarBurgers.forEach( el => {
+                    el.addEventListener('click', () => {
+
+                      // Get the target from the "data-target" attribute
+                      const target = el.dataset.target;
+                      const $target = document.getElementById(target);
+
+                      // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+                      el.classList.toggle('is-active');
+                      $target.classList.toggle('is-active');
+
+                    });
+                  });
+
+                });
+              </script>
+            </nav>   
+          </div>
+        </div>
+      </div>
+      <!-- }}} -->
+    </section>
+    <section class="section m-0 p-0">
+        <!-- How it works {{{ -->
+        <div class="container">
+            <div class="columns">
+                <div class="column is-10 is-offset-1">
+                    <div class="hero is-medium">
+                        <div class="hero-body px-5 py-6">
+                            <div class="columns">
+                                <div class="column is-half">
+                                    <p class="title is-size-3">Pricing</p>
+                                    <p>The pricing model for the <strong>Workout
+                                        Bot</strong> is pretty simple. As mentioned
+                                        in the <a href="documentation.html">documentation</a>,
+                                        there's a limit to the amount of
+                                        different users that can use the bot in
+                                        any one group chat. The reason for this is
+                                        that for each new user that interacts with
+                                        the bot, an individual account is created.</p>
+                                    <br>
+                                    <p>The subscription plans only differ in
+                                        the amount of users allowed to use the
+                                        bot on the server. Beyond the limit,
+                                        new users won't be able to register their
+                                        exercise unless the server is upgraded.</p>
+                                    <br>
+                                    <p>Unless you have a dedicated fitness server, the cheapest plan is probably enough.</p>
+                                </div>
+                            </div>
+                            <br>
+                            
+                            <div class="pricing-table">
+                                <div class="pricing-plan">
+                                    <div class="plan-header">Monthly Small</div>
+                                    <div class="plan-price"><span class="plan-price-amount"><span class="plan-price-currency">$</span>0.90</span>/month</div>
+                                    <div class="plan-items">
+                                        <div class="plan-item">25 Users</div>
+                                    </div>
+                                    <div class="plan-footer">
+                                        <button class="button is-fullwidth">Join the waitlist</button>
+                                    </div>
+                                </div>
+
+                                <div class="pricing-plan is-active">
+                                    <div class="plan-header">Yearly Small</div>
+                                    <div class="plan-price"><span class="plan-price-amount"><span class="plan-price-currency">$</span>9.90</span>/year</div>
+                                    <div class="plan-items">
+                                        <div class="plan-item">25 Users</div>
+                                    </div>
+                                    <div class="plan-footer">
+                                        <button class="button is-fullwidth">Join the waitlist</button>
+                                    </div>
+                                </div>
+
+                                <div class="pricing-plan is-warning">
+                                    <div class="plan-header">Yearly Medium</div>
+                                    <div class="plan-price"><span class="plan-price-amount"><span class="plan-price-currency">$</span>19.90</span>/year</div>
+                                    <div class="plan-items">
+                                        <div class="plan-item">50 Users</div>
+                                    </div>
+                                    <div class="plan-footer">
+                                        <button class="button is-fullwidth">Join the waitlist</button>
+                                    </div>
+                                </div>
+
+                                <div class="pricing-plan is-danger">
+                                    <div class="plan-header">Yearly Large</div>
+                                    <div class="plan-price"><span class="plan-price-amount"><span class="plan-price-currency">$</span>89.90</span>/year</div>
+                                    <div class="plan-items">
+                                        <div class="plan-item">250 Users</div>
+                                    </div>
+                                    <div class="plan-footer">
+                                        <button class="button is-fullwidth">Join the waitlist</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- <div class="columns is-multiline"> -->
+                            <!--   <div class="column is-half is-size-5"> -->
+                            <!--     <!-1- <p class="title is-size-3">A bridge between your chatroom and your workout app</p> -1-> -->
+                            <!--     <p class="title is-size-3">Getting Started</p> -->
+                            <!--     <p> -->
+                            <!--     After <a href="princing.html">buying a subscription</a>, -->
+                            <!--     you'll receive links to add the <strong>Workout -->
+                            <!--         Bot</strong> to the supported platforms. You'll also -->
+                            <!--     receive an <em>activation code</em>. When the bot joins -->
+                            <!--     your server, type <code>!activate -->
+                            <!--     YOUR_ACTIVATION_CODE</code> to activate it. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+                            <!--     <p>Everything is then set-up. Any group member can now use -->
+                            <!--         the bot and, the first time they do so, an invidiual -->
+                            <!--         account will be created for them without any additional -->
+                            <!--         interaction. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+                            <!--     <p>The individual user account can be used to check -->
+                            <!--         your individual progress and can be linked to on other -->
+                            <!--         servers or platforms using the bot, which means you can -->
+                            <!--         track your progress accross servers. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+                            <!--     <p>Note that there's a limit to the number of different -->
+                            <!--         members that can use the bot in the server, which is -->
+                            <!--         set depending on your subscription plan (the cheapest -->
+                            <!--         plan allows for up to 25 users).</p> -->
+
+                            <!--     <!-1- To use the <strong>Workout Bot</strong> -1-> --> 
+                            <!--     <!-1- <p>The <strong>Workout Bot</strong> is a chat bot.</p> -1-> -->
+                            <!--     <!-1- <p>After joining your group, it'll track the exercise you log onto the chat.</p> -1-> -->
+                            <!--     <!-1- <br> -1-> -->
+                            <!--     <!-1- <p>Only one user has to pay for and activate the bot as described in the documentation. -1-> -->
+                            <!--     <!-1-   Afterwards, any group member can type right away <strong id="command-example">+50 pushups</strong> to begin.</p> -1-> -->
+                            <!--     <!-1- <br> -1-> -->
+                            <!--     <!-1- <p>All exercise data can be viewed through the group's dashboard.</p> -1-> -->
+                            <!--     <!-1- <br> -1-> -->
+                            <!--     <!-1- <p>Group members can create <strong>challenges</strong> for the group.</p> -1-> -->
+                            <!--     <!-1- <br> -1-> -->
+
+                            <!--   </div> -->
+                            <!--   <div class="column is-half is-size-5"> -->
+                            <!--     <p class="title is-size-3">Track your exercise</p> -->
+                            <!--     <p>The core functionality of the bot is <strong>tracking exercise -->
+                            <!--         through the chat room</strong>. To add an exercise send -->
+                            <!--     a message with the format <code>+AMOUNT EXERCISE</code> to -->
+                            <!--     register the exercise with the given amount. For example, -->
+                            <!--     one might write <code>+25 pushups</code> to register 25 -->
+                            <!--     pushups, or similarly <code>+3.2 km</code> to add a run.</p> -->
+                            <!--     <br> -->
+
+                            <!--     <p> -->
+                            <!--         By default, simple exercises such as -->
+                            <!--         <code>pushups</code>, <code>abs</code>, -->
+                            <!--         <code>squats</code> and <code>km running</code> are -->
+                            <!--         available (and the full list is here). Attempts to -->
+                            <!--         register an exercise which doesn’t exist will fail, but -->
+                            <!--         your server can make new exercises available. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+                            <!--     <p> -->
+                            <!--         You can, optionally, add the unit and a comment to each -->
+                            <!--         exercise submission — you can note down, e.g., the time -->
+                            <!--         you took, the number of repetitions, or more -->
+                            <!--         information: <code>+5.3 km running (in 35 -->
+                            <!--         minutes)</code>, or <code>+1200 meters swimming (crawl) -->
+                            <!--         </code>. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+
+                            <!--     <p>The full syntax is <code>+AMOUNT [UNIT] EXERCISE [COMMENT]</code>.</p> -->
+
+                            <!--   </div> -->
+                            <!--   <div class="column is-half is-size-5"> -->
+                            <!--     <p class="title is-size-3">Creating custom exercises</p> -->
+                            <!--     <p> -->
+                            <!--         To ensure no nonsense exercises are created, only the -->
+                            <!--         user who activated the bot has the ability to create -->
+                            <!--         new exercises. To do so, they have to send a message -->
+                            <!--         with the format <code>!new EXERCISE_NAME [unit type] -->
+                            <!--             [muscle group]</code>, in which both the units and -->
+                            <!--         muscle group are optional. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+
+                            <!--     <p> -->
+                            <!--         For example, one might create the exercise -->
+                            <!--         <strong>swimming</strong> measured in -->
+                            <!--         <strong>meters</strong> with <code>!new swimming -->
+                            <!--         meters</code>, and any user can register it with -->
+                            <!--         <code>+1200 meters swimming</code>, or just (because it’s -->
+                            <!--         implicitly in meters) <code>+1200 swimming</code>. -->
+                            <!--     </p> -->
+
+                            <!--     <br> -->
+
+                            <!--     <p class="title is-size-3">Challenges</p> -->
+
+                            <!--     <p> -->
+                            <!--         The user who activated the bot can create group-wide -->
+                            <!--         challenges by sending the message <code>!challenge -->
+                            <!--         AMOUNT EXERCISE TIME_INTERVAL [COMMENT]</code>. A -->
+                            <!--         challenge is a quota that ought to be fulfilled by -->
+                            <!--         group members taking the challenge. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+
+                            <!--     <p> -->
+                            <!--         This could be, for example, the goal of doing 100 -->
+                            <!--         pushups every day. One could create said challenge with -->
+                            <!--         <code>!challenge 100 pushups daily</code>. -->
+                            <!--     </p> -->
+
+                            <!--   </div> -->
+                            <!--   <div class="column is-half is-size-5"> -->
+                            <!--     <p class="title is-size-3">Dashboards</p> -->
+                            <!--     <p>It would be pretty pointless to track your exercise if -->
+                            <!--         you couldn't see the data afterwards. In a group chat -->
+                            <!--         with an activated bot, you can ask for a link to the -->
+                            <!--         group dashboard with <code>!dashboard group</code>. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+                            <!--     <p> -->
+                            <!--         In the <strong>group's dashboard</strong> you have -->
+                            <!--         multiple data graphs showing progress and activity -->
+                            <!--         overtime, exercise heatmaps, progress on challenges, -->
+                            <!--         leaderboards featuring the group members, and cummulative -->
+                            <!--         amounts of exercises for the whole group.</p> -->
+                            <!--     <br> -->
+                            <!--     <p> -->
+                            <!--         In your <strong>user dashboard</strong>, which you get -->
+                            <!--         to by sending the message <code>!dashboard</code>, -->
+                            <!--         features similar data visualizations as the group -->
+                            <!--         dashboard, but only containing your individual -->
+                            <!--         exercises. -->
+                            <!--     </p> -->
+                            <!--     <p> -->
+                            <!--         Both dashboards are read-only and can be shared to -->
+                            <!--         outsiders not using the bot by simply sharing the link. -->
+                            <!--         The group dashboard's link is sent to the group chat on -->
+                            <!--         request, while your individual dashboard is sent -->
+                            <!--         privately to your private messages. -->
+                            <!--     </p> -->
+                            <!--   </div> -->
+                            <!--   <div class="column is-half is-size-5"> -->
+                            <!--     <p class="title is-size-3">Linking your account on a new server</p> -->
+                            <!--     <p> -->
+                            <!--         Imagine the following scenario: you have started using -->
+                            <!--         the bot with your friends in a discord server, where -->
+                            <!--         you log some push-ups everyday. However, today your -->
+                            <!--         team at work have set it up on your slack server and -->
+                            <!--         you want to join in on the fun but keep it in sync with -->
+                            <!--         what you do on the other server too. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+                            <!--     <p> -->
+                            <!--         You want to add 50 push-ups through discord and have -->
+                            <!--         them show up on your work server’s dashboard too. This -->
+                            <!--         is done by **linking**. -->
+                            <!--     </p> -->
+                            <!--     <br> -->
+                            <!--     <p> -->
+                            <!--         On your discord server type -->
+                            <!--         <code>!getLinkingCode</code> and copy the code sent -->
+                            <!--         directly to you by the bot. On your slack server type -->
+                            <!--         <code>!link YOUR_LINKING_CODE</code>. -->
+                            <!--     </p> -->
+
+                            <!--     <br> -->
+                            <!--     <p> -->
+                            <!--         Now, both exercises added through the discord server -->
+                            <!--         and through the slack server will be added to your -->
+                            <!--         individual account. The numbers shown on the group’s -->
+                            <!--         leaderboard will be those too. -->
+                            <!--     </p> -->
+
+                            <!--     <br> -->
+                            <!--     <p> -->
+                            <!--         Note that linking an account on one server will -->
+                            <!--         override the existing server’s account, so be careful -->
+                            <!--         not to add exercises to the new server before linking -->
+                            <!--         your account. -->
+                            <!--     </p> -->
+                            <!--   </div> -->
+                            <!--   <div class="column is-half is-size-5"> -->
+                            <!--     <p class="title is-size-3">FAQ</p> -->
+                            <!--     <p>Something missing? Do let me know on the <a -->
+                            <!--             href="https://github.com/alt-romes/pushups-commander/issues">issue -->
+                            <!--             tracker</a> or through my e-mail, rodrigo.m.mesquita()gmail.com.</p> -->
+                            <!--   </div> -->
+                            <!-- </div> -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- }}} -->
+    </section>
+</body>
+</html>
