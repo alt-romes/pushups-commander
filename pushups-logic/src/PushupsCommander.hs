@@ -142,7 +142,7 @@ activateCommander code = asks fst >>= \serverId -> lift do
       Just  (id, _) -> do
 
         -- Create associated user
-        umUser <- createUser (User ("pushups" <> show id) (Just "pushups-password;lYW^Iu=lN>&7mjS0<c~J~f8S.W5[%E}{7+") "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
+        umUser <- createUser (User ("pushups" <> show id) (Just PUSHUPS_PASSWORD_TODO_READER) "Pushups Bot Server" "pushupsbot@nowhere.com" Nothing Nothing)
         addToGroup [umUser] (Ref Nothing 131) -- FUNC ROMES Pushups Group Share
 
         -- Activate server
